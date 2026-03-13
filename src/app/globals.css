@@ -1,26 +1,232 @@
 @import "tailwindcss";
 
+/* Loop Protocol Design System */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand Colors */
+  --forest: #1B4D3E;
+  --forest-light: #2D7A5E;
+  --forest-dark: #153D31;
+  --gold: #D4AF37;
+  --gold-light: #F4D03F;
+  --gold-dark: #B8960C;
+  
+  /* Backgrounds */
+  --bg-base: #0A0F0D;
+  --bg-surface: #141A17;
+  --bg-elevated: #1C2420;
+  --bg-hover: #242D28;
+  
+  /* Text */
+  --text-primary: #F5F5F5;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  
+  /* Semantic */
+  --positive: #22C55E;
+  --negative: #EF4444;
+  --info: #3B82F6;
+  
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  
+  /* Shadows */
+  --glow-gold: 0 0 60px rgba(212, 175, 55, 0.15);
+  --glow-forest: 0 0 60px rgba(27, 77, 62, 0.2);
+  
+  /* Spacing (base: 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  
+  /* Transitions */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-forest: var(--forest);
+  --color-forest-light: var(--forest-light);
+  --color-forest-dark: var(--forest-dark);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-dark: var(--gold-dark);
+  
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-info: var(--info);
+  
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection */
+::selection {
+  background: var(--forest);
+  color: var(--text-primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-hover);
+}
+
+/* Focus states */
+*:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
+/* Typography utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--forest-light) 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(20, 26, 23, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Mesh gradient background */
+.mesh-gradient {
+  background-image: 
+    radial-gradient(at 20% 30%, rgba(27, 77, 62, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 70%, rgba(45, 122, 94, 0.1) 0px, transparent 50%),
+    radial-gradient(at 50% 90%, rgba(212, 175, 55, 0.05) 0px, transparent 50%);
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: var(--glow-gold);
+}
+
+.glow-forest {
+  box-shadow: var(--glow-forest);
+}
+
+/* Animated border gradient */
+@keyframes border-rotate {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.animated-border {
+  position: relative;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+}
+
+.animated-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--angle), var(--forest), var(--gold), var(--forest));
+  animation: border-rotate 4s linear infinite;
+  z-index: -1;
+  opacity: 0.5;
+}
+
+/* Value particle animation */
+@keyframes float-up {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+.particle {
+  animation: float-up 3s ease-out infinite;
+}
+
+/* Pulse glow */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(212, 175, 55, 0.4);
+  }
+}
+
+.pulse-gold {
+  animation: pulse-glow 3s ease-in-out infinite;
 }
