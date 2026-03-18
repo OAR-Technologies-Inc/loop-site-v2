@@ -2,6 +2,7 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
+import Link from "next/link";
 
 const securityPillars = [
   {
@@ -194,17 +195,15 @@ export function Security() {
                   <span>Solana Native</span>
                 </div>
               </div>
-              <a
-                href="https://github.com/OAR-Technologies-Inc/loop-protocol/blob/master/docs/SECURITY-ARCHITECTURE.md"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/security"
                 className="text-sm text-forest-light hover:text-forest transition-colors flex items-center gap-2"
               >
                 Read Full Security Documentation
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
                 </svg>
-              </a>
+              </Link>
             </div>
           </div>
         </motion.div>
