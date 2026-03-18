@@ -3,13 +3,27 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton, SystemTicker, GridBackground } from "@/components/ui";
+import { Target, Database, Cpu, Shield, TrendingUp, Coins, Terminal, Network, Lock, FileCode, LayoutGrid } from "lucide-react";
+
+// Tactical Icon wrapper
+function TacticalIcon({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+  return (
+    <div className="p-4 bg-white/5 rounded-lg border border-white/5">
+      <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider block mb-2">
+        [{label}]
+      </span>
+      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-2">
+        <Icon size={20} strokeWidth={1.2} className="text-zinc-400" />
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [tvl, setTvl] = useState(0);
   const [agents, setAgents] = useState(0);
   const [captures, setCaptures] = useState(0);
 
-  // Animate counters on load
   useEffect(() => {
     const duration = 2000;
     const steps = 60;
@@ -39,13 +53,11 @@ export default function HomePage() {
       {/* Hero */}
       <section className="pt-32 pb-16 px-6">
         <div className="max-w-7xl mx-auto">
-          {/* Protocol Status */}
           <div className="flex items-center gap-4 mb-8">
             <LiveBadge label="Mainnet Live" />
             <span className="label">Solana • Block 298,847,201</span>
           </div>
 
-          {/* Main Headline */}
           <h1 className="heading-xl max-w-4xl mb-6">
             Value Infrastructure<br />
             <span className="text-gradient">for the Agentic Era</span>
@@ -57,7 +69,6 @@ export default function HomePage() {
             24/7 wealth generation.
           </p>
 
-          {/* CTA Row */}
           <div className="flex flex-wrap gap-4 mb-16">
             <Link href="/launch">
               <ShimmerButton size="lg">Deploy Agent</ShimmerButton>
@@ -67,30 +78,14 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Protocol Metrics */}
           <div className="flex flex-wrap gap-12">
-            <Metric 
-              label="Total Value Locked" 
-              value={`$${tvl.toLocaleString()}`}
-              size="lg"
-              accent
-            />
-            <Metric 
-              label="Active Agents" 
-              value={agents.toLocaleString()}
-              size="lg"
-            />
-            <Metric 
-              label="Value Captures" 
-              value={captures.toLocaleString()}
-              suffix="/24h"
-              size="lg"
-            />
+            <Metric label="Total Value Locked" value={`$${tvl.toLocaleString()}`} size="lg" accent />
+            <Metric label="Active Agents" value={agents.toLocaleString()} size="lg" />
+            <Metric label="Value Captures" value={captures.toLocaleString()} suffix="/24h" size="lg" />
           </div>
         </div>
       </section>
 
-      {/* Divider */}
       <div className="divider mx-6" />
 
       {/* Bento Grid Section */}
@@ -106,27 +101,42 @@ export default function HomePage() {
               <span className="label label-accent mb-4 block">Core Primitive</span>
               <h2 className="heading-lg mb-4">Value Capture</h2>
               <p className="text-text-secondary mb-6 max-w-xl">
-                Agents intercept value from shopping, data licensing, compute rental, 
-                and DeFi. Every dollar you spend creates compounding wealth instead of 
+                Agents intercept value from commerce, data licensing, compute rental, 
+                and DeFi. Every transaction creates compounding wealth instead of 
                 disappearing into corporate coffers.
               </p>
               <div className="grid grid-cols-3 gap-4 mt-auto">
-                <div className="p-4 bg-white/5 rounded-lg">
-                  <div className="text-2xl mb-1">🛒</div>
-                  <span className="label">Shopping</span>
+                <div className="p-4 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider block mb-3">
+                    [NODE_01]
+                  </span>
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                    <Target size={20} strokeWidth={1.2} className="text-zinc-400" />
+                  </div>
+                  <span className="label">Commerce</span>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg">
-                  <div className="text-2xl mb-1">📊</div>
+                <div className="p-4 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider block mb-3">
+                    [DATA_FEED]
+                  </span>
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                    <Database size={20} strokeWidth={1.2} className="text-zinc-400" />
+                  </div>
                   <span className="label">Data</span>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg">
-                  <div className="text-2xl mb-1">🖥️</div>
+                <div className="p-4 bg-white/5 rounded-lg border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider block mb-3">
+                    [CORE_PROC]
+                  </span>
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                    <Cpu size={20} strokeWidth={1.2} className="text-zinc-400" />
+                  </div>
                   <span className="label">Compute</span>
                 </div>
               </div>
             </BentoCard>
 
-            {/* Self-Custody - Small */}
+            {/* Self-Custody */}
             <BentoCard className="col-span-4 min-h-[320px]">
               <span className="label label-accent mb-4 block">Security</span>
               <h2 className="heading-md mb-4">Self-Custody</h2>
@@ -134,42 +144,52 @@ export default function HomePage() {
                 No seed phrases. Passkey authentication via device biometrics. 
                 MPC threshold signing means Loop never holds your keys.
               </p>
-              <div className="mt-auto pt-4 border-t border-white/5">
-                <div className="flex items-center gap-2">
-                  <span className="status-dot" />
-                  <span className="mono text-sm">2-of-3 MPC</span>
+              <div className="flex items-center gap-4 mt-auto pt-4 border-t border-white/5">
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                  <Lock size={16} strokeWidth={1.2} className="text-zinc-400" />
                 </div>
+                <span className="mono text-sm">2-of-3 MPC</span>
               </div>
             </BentoCard>
 
-            {/* Stacking - Medium */}
+            {/* Stacking */}
             <BentoCard className="col-span-6 min-h-[280px]">
               <span className="label label-accent mb-4 block">Yield</span>
               <h2 className="heading-md mb-4">Autonomous Stacking</h2>
               <p className="text-text-secondary text-sm mb-4">
                 Agents auto-compound captured value into yield positions. 
-                Protocol fees fund the staker pool — your wealth grows while you sleep.
+                Protocol fees fund the staker pool.
               </p>
-              <div className="flex items-baseline gap-2 mt-auto">
-                <span className="text-4xl font-bold text-accent mono">12.4%</span>
-                <span className="label">Current APY</span>
+              <div className="flex items-center gap-4 mt-auto">
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                  <TrendingUp size={16} strokeWidth={1.2} className="text-zinc-400" />
+                </div>
+                <div>
+                  <span className="text-3xl font-bold text-accent mono">12.4%</span>
+                  <span className="label ml-2">APY</span>
+                </div>
               </div>
             </BentoCard>
 
-            {/* Agent Tokens - Medium */}
+            {/* Agent Tokens */}
             <BentoCard className="col-span-6 min-h-[280px]">
               <span className="label label-accent mb-4 block">Marketplace</span>
               <h2 className="heading-md mb-4">Agent Token Bonding</h2>
               <p className="text-text-secondary text-sm mb-4">
                 Deploy agents with bonding curve tokens. As adoption grows, 
-                token value appreciates. Capture upside from agents you build or discover.
+                token value appreciates.
               </p>
-              <Link href="/marketplace" className="inline-flex items-center gap-2 text-accent text-sm font-mono mt-auto hover:underline">
-                Browse Agents →
-              </Link>
+              <div className="flex items-center justify-between mt-auto">
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                  <Coins size={16} strokeWidth={1.2} className="text-zinc-400" />
+                </div>
+                <Link href="/marketplace" className="text-accent text-sm font-mono hover:underline">
+                  Browse Agents →
+                </Link>
+              </div>
             </BentoCard>
 
-            {/* Policy Engine - Full Width */}
+            {/* Policy Engine */}
             <BentoCard className="col-span-full min-h-[200px]">
               <div className="flex flex-col md:flex-row md:items-center gap-8">
                 <div className="flex-1">
@@ -180,8 +200,11 @@ export default function HomePage() {
                     Solana enforces constraints — agents cannot exceed policy even if compromised.
                   </p>
                 </div>
-                <div className="flex-shrink-0 bg-white/5 rounded-lg p-4 font-mono text-xs">
-                  <div className="text-text-muted mb-2"># vault_policy.toml</div>
+                <div className="flex-shrink-0 bg-black/30 border border-white/5 rounded-lg p-4 font-mono text-xs">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Terminal size={14} strokeWidth={1.2} className="text-zinc-500" />
+                    <span className="text-zinc-500">vault_policy.toml</span>
+                  </div>
                   <div><span className="text-accent">daily_limit</span> = 1000</div>
                   <div><span className="text-accent">auto_stack</span> = true</div>
                   <div><span className="text-accent">require_user</span> = &quot;&gt;$500&quot;</div>
@@ -193,7 +216,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Divider */}
       <div className="divider mx-6" />
 
       {/* Technical Specs */}
@@ -206,7 +228,10 @@ export default function HomePage() {
           <BentoGrid>
             {/* Programs */}
             <BentoCard className="col-span-6">
-              <span className="label mb-4 block">Deployed Programs</span>
+              <div className="flex items-center gap-2 mb-4">
+                <Network size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">Deployed Programs</span>
+              </div>
               <div className="space-y-3 font-mono text-sm">
                 <div className="flex justify-between items-center py-2 border-b border-white/5">
                   <span className="text-text-muted">CRED</span>
@@ -222,29 +247,32 @@ export default function HomePage() {
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-text-muted">AVP</span>
-                  <span className="text-text-secondary">Coming Q2</span>
+                  <span className="text-zinc-600">Coming Q2</span>
                 </div>
               </div>
             </BentoCard>
 
             {/* Stack */}
             <BentoCard className="col-span-6">
-              <span className="label mb-4 block">Infrastructure</span>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-white/5 rounded">
-                  <span className="label block mb-1">Chain</span>
+              <div className="flex items-center gap-2 mb-4">
+                <Cpu size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">Infrastructure</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-white/5 rounded border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-1">Chain</span>
                   <span className="text-sm">Solana Mainnet</span>
                 </div>
-                <div className="p-3 bg-white/5 rounded">
-                  <span className="label block mb-1">Execution</span>
+                <div className="p-3 bg-white/5 rounded border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-1">Execution</span>
                   <span className="text-sm">AWS Nitro TEE</span>
                 </div>
-                <div className="p-3 bg-white/5 rounded">
-                  <span className="label block mb-1">Custody</span>
+                <div className="p-3 bg-white/5 rounded border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-1">Custody</span>
                   <span className="text-sm">Squads v4</span>
                 </div>
-                <div className="p-3 bg-white/5 rounded">
-                  <span className="label block mb-1">Proofs</span>
+                <div className="p-3 bg-white/5 rounded border border-white/5">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-1">Proofs</span>
                   <span className="text-sm">zkTLS / Reclaim</span>
                 </div>
               </div>
@@ -252,42 +280,50 @@ export default function HomePage() {
 
             {/* Audits */}
             <BentoCard className="col-span-4">
-              <span className="label mb-4 block">Audit Status</span>
+              <div className="flex items-center gap-2 mb-4">
+                <Shield size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">Audit Status</span>
+              </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <span className="status-dot-warning" />
-                  <span className="text-sm">OtterSec — Q2 2026</span>
+                  <span className="text-sm text-text-secondary">OtterSec — Q2</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="status-dot-warning" />
-                  <span className="text-sm">Trail of Bits — Q2 2026</span>
+                  <span className="text-sm text-text-secondary">Trail of Bits — Q2</span>
                 </div>
               </div>
               <Link href="/security" className="inline-flex items-center gap-2 text-accent text-sm font-mono mt-6 hover:underline">
-                Security Architecture →
+                Security →
               </Link>
             </BentoCard>
 
             {/* SDK */}
             <BentoCard className="col-span-4">
-              <span className="label mb-4 block">SDK</span>
-              <div className="bg-black/30 rounded p-3 font-mono text-xs mb-4">
-                <span className="text-text-muted">$</span> npm i @loop-protocol/sdk
+              <div className="flex items-center gap-2 mb-4">
+                <FileCode size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">SDK</span>
+              </div>
+              <div className="bg-black/30 border border-white/5 rounded p-3 font-mono text-xs mb-4">
+                <span className="text-zinc-500">$</span> npm i @loop-protocol/sdk
               </div>
               <p className="text-text-secondary text-sm">
-                TypeScript SDK for vaults, stacking, and agent registration.
+                TypeScript SDK for vaults, stacking, agents.
               </p>
               <Link href="/docs" className="inline-flex items-center gap-2 text-accent text-sm font-mono mt-4 hover:underline">
-                Documentation →
+                Docs →
               </Link>
             </BentoCard>
 
             {/* Open Source */}
             <BentoCard className="col-span-4">
-              <span className="label mb-4 block">Open Source</span>
+              <div className="flex items-center gap-2 mb-4">
+                <LayoutGrid size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">Open Source</span>
+              </div>
               <p className="text-text-secondary text-sm mb-4">
-                All Solana programs and SDK code are MIT licensed. 
-                Verify, fork, contribute.
+                All programs and SDK under MIT license. Verify, fork, contribute.
               </p>
               <a 
                 href="https://github.com/OAR-Technologies-Inc/loop-protocol" 
@@ -318,16 +354,14 @@ export default function HomePage() {
               <Link href="/docs" className="text-text-muted hover:text-text-primary text-sm">Docs</Link>
               <Link href="/security" className="text-text-muted hover:text-text-primary text-sm">Security</Link>
               <a href="https://github.com/OAR-Technologies-Inc" target="_blank" className="text-text-muted hover:text-text-primary text-sm">GitHub</a>
-              <a href="https://twitter.com/loopprotocol" target="_blank" className="text-text-muted hover:text-text-primary text-sm">Twitter</a>
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-text-muted text-xs font-mono">
-            © 2026 OAR Technologies Inc. All rights reserved.
+            © 2026 OAR Technologies Inc.
           </div>
         </div>
       </footer>
 
-      {/* System Ticker */}
       <SystemTicker />
     </div>
   );
