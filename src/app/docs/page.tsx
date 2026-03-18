@@ -1,86 +1,64 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
+import { C2Nav, BentoCard, BentoGrid } from "@/components/ui";
+
+const SECTIONS = [
+  { id: "installation", label: "Installation" },
+  { id: "quickstart", label: "Quick Start" },
+  { id: "configuration", label: "Configuration" },
+  { id: "vaults", label: "Vaults" },
+  { id: "cred", label: "Cred Token" },
+  { id: "stacking", label: "Stacking" },
+  { id: "agents", label: "Service Agents" },
+  { id: "bonding-curves", label: "Bonding Curves" },
+  { id: "program-ids", label: "Program IDs" },
+];
 
 export default function DocsPage() {
+  const [activeSection, setActiveSection] = useState("installation");
+
   return (
-    <div className="min-h-screen bg-bg-base">
-      {/* Header */}
-      <header className="border-b border-border-subtle sticky top-0 bg-bg-base/80 backdrop-blur z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-display text-xl font-bold">
-            Loop Protocol
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/marketplace" className="text-text-secondary hover:text-text-primary">
-              Marketplace
-            </Link>
-            <Link href="/launch" className="text-text-secondary hover:text-text-primary">
-              Launch Agent
-            </Link>
-            <a 
-              href="https://github.com/OAR-Technologies-Inc/loop-protocol" 
-              target="_blank"
-              className="text-text-secondary hover:text-text-primary"
-            >
-              GitHub
-            </a>
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <C2Nav />
 
-      <div className="max-w-6xl mx-auto px-6 py-12 flex gap-12">
-        {/* Sidebar */}
-        <aside className="w-64 flex-shrink-0 hidden lg:block">
-          <nav className="sticky top-24 space-y-6">
-            <div>
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-                Getting Started
-              </h3>
-              <ul className="space-y-2">
-                <li><a href="#installation" className="text-text-secondary hover:text-forest">Installation</a></li>
-                <li><a href="#quickstart" className="text-text-secondary hover:text-forest">Quick Start</a></li>
-                <li><a href="#configuration" className="text-text-secondary hover:text-forest">Configuration</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-                Core Concepts
-              </h3>
-              <ul className="space-y-2">
-                <li><a href="#vaults" className="text-text-secondary hover:text-forest">Vaults</a></li>
-                <li><a href="#cred" className="text-text-secondary hover:text-forest">Cred Token</a></li>
-                <li><a href="#stacking" className="text-text-secondary hover:text-forest">Stacking</a></li>
-                <li><a href="#agents" className="text-text-secondary hover:text-forest">Service Agents</a></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-                Advanced
-              </h3>
-              <ul className="space-y-2">
-                <li><a href="#bonding-curves" className="text-text-secondary hover:text-forest">Bonding Curves</a></li>
-                <li><a href="#capture-modules" className="text-text-secondary hover:text-forest">Capture Modules</a></li>
-                <li><a href="#program-ids" className="text-text-secondary hover:text-forest">Program IDs</a></li>
-              </ul>
-            </div>
-          </nav>
-        </aside>
+      <div className="pt-24 pb-16 px-6">
+        <div className="max-w-7xl mx-auto flex gap-12">
+          {/* Sidebar */}
+          <aside className="w-56 flex-shrink-0 hidden lg:block">
+            <nav className="sticky top-24 space-y-1">
+              <span className="label block mb-4">Documentation</span>
+              {SECTIONS.map((section) => (
+                <a
+                  key={section.id}
+                  href={`#${section.id}`}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`block px-3 py-2 text-sm font-mono transition-colors rounded ${
+                    activeSection === section.id
+                      ? "text-accent bg-white/5"
+                      : "text-text-muted hover:text-text-primary"
+                  }`}
+                >
+                  {section.label}
+                </a>
+              ))}
+            </nav>
+          </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 min-w-0">
-          <div className="prose prose-invert max-w-none">
-            {/* Hero */}
+          {/* Main Content */}
+          <main className="flex-1 min-w-0">
+            {/* Header */}
             <div className="mb-12">
-              <h1 className="text-4xl font-bold mb-4">Loop Protocol SDK</h1>
-              <p className="text-xl text-text-secondary">
-                The official TypeScript SDK for building on Loop Protocol — value capture infrastructure for AI agents on Solana.
+              <span className="label label-accent mb-4 block">@loop-protocol/sdk</span>
+              <h1 className="heading-xl mb-4">SDK Documentation</h1>
+              <p className="text-text-secondary text-lg max-w-2xl">
+                TypeScript SDK for building on Loop Protocol — value capture infrastructure 
+                for AI agents on Solana.
               </p>
             </div>
 
             {/* Installation */}
-            <section id="installation" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Installation</h2>
+            <Section id="installation" title="Installation">
               <CodeBlock language="bash">
 {`npm install @loop-protocol/sdk
 # or
@@ -88,378 +66,304 @@ yarn add @loop-protocol/sdk
 # or
 pnpm add @loop-protocol/sdk`}
               </CodeBlock>
-            </section>
+            </Section>
 
             {/* Quick Start */}
-            <section id="quickstart" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Quick Start</h2>
+            <Section id="quickstart" title="Quick Start">
               <p className="text-text-secondary mb-4">
-                Get started with Loop Protocol in under 5 minutes. Here's a complete example of connecting, wrapping USDC to Cred, and stacking for yield.
+                Get started with Loop Protocol in under 5 minutes. Connect, wrap USDC to Cred, 
+                and start stacking for yield.
               </p>
 
-              <h3 className="text-xl font-semibold mb-3">Basic Usage</h3>
               <CodeBlock language="typescript">
-{`import { Loop } from '@loop-protocol/sdk';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { BN } from '@coral-xyz/anchor';
+{`import { Loop, Cred, Vault } from "@loop-protocol/sdk";
+import { Connection, Keypair } from "@solana/web3.js";
 
-// Initialize the SDK
-const connection = new Connection('https://api.mainnet-beta.solana.com');
-const loop = new Loop({ connection });
+// Initialize
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const wallet = Keypair.generate(); // Use your wallet
 
-// Check if user has a vault
-const hasVault = await loop.vault.exists(userWallet.publicKey);
+const loop = new Loop({ connection, wallet });
 
-// Create vault if needed
-if (!hasVault) {
-  const initTx = await loop.vault.initializeVault(userWallet.publicKey);
-  // Sign and send transaction...
-}
-
-// Get vault balance
-const vault = await loop.vault.getVault(userWallet.publicKey);
-console.log(\`Balance: \${vault?.credBalance} Cred\`);
-console.log(\`Stacked: \${vault?.stackedBalance} Cred\`);`}
-              </CodeBlock>
-
-              <h3 className="text-xl font-semibold mb-3 mt-8">Simplified API (LoopSDK)</h3>
-              <p className="text-text-secondary mb-4">
-                For common operations like launching agents and trading tokens, use the simplified LoopSDK wrapper:
-              </p>
-              <CodeBlock language="typescript">
-{`import { LoopSDK } from '@loop-protocol/sdk';
-
-const sdk = new LoopSDK(); // Defaults to mainnet
-
-// Launch a service agent (pays 500 OXO)
-const tx = await sdk.registerServiceAgent({
-  name: 'ComputeRental v1',
-  capabilities: ['Compute Rental', 'Data Licensing'],
-  feePercentage: 5,
-  launchToken: true
+// Wrap USDC to Cred (1:1)
+const wrapTx = await loop.cred.wrap({
+  amount: 100_000_000, // 100 USDC (6 decimals)
 });
+console.log("Wrapped:", wrapTx);
 
-// Get bonding curve price
-const price = await sdk.getBondingCurvePrice('agent-mint-address');
-console.log(\`Current price: \${price} OXO\`);
+// Stack Cred for yield
+const stackTx = await loop.vault.stack({
+  amount: 100_000_000, // 100 Cred
+  lockPeriod: 30, // 30 days
+});
+console.log("Stacked:", stackTx);
 
-// Buy agent tokens
-const buyTx = await sdk.buyAgentToken('agent-mint-address', 100);
-
-// Access full SDK when needed
-const fullLoop = sdk.core;
-await fullLoop.vault.initializeVault(userWallet.publicKey);`}
+// Check position
+const position = await loop.vault.getPosition(wallet.publicKey);
+console.log("APY:", position.currentApy);`}
               </CodeBlock>
-            </section>
+            </Section>
 
             {/* Configuration */}
-            <section id="configuration" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Configuration</h2>
-              <CodeBlock language="typescript">
-{`import { Loop, LoopSDK } from '@loop-protocol/sdk';
-import { Connection, clusterApiUrl } from '@solana/web3.js';
+            <Section id="configuration" title="Configuration">
+              <p className="text-text-secondary mb-4">
+                Configure the SDK for different environments.
+              </p>
 
-// Full SDK with custom connection
-const loop = new Loop({
-  connection: new Connection('https://your-rpc.com'),
-  wallet: anchorWallet, // Optional, for signing
-});
-
-// Simple SDK with network presets
-const sdk = new LoopSDK({ network: 'mainnet' });
-// or
-const devSdk = new LoopSDK({ network: 'devnet' });
-// or with custom endpoint
-const customSdk = new LoopSDK({ 
-  endpoint: 'https://your-rpc.com' 
+              <BentoGrid className="gap-4 mb-6">
+                <BentoCard className="col-span-6" spotlight={false}>
+                  <span className="label mb-2 block">Mainnet</span>
+                  <CodeBlock language="typescript">
+{`const loop = new Loop({
+  connection,
+  wallet,
+  cluster: "mainnet-beta",
 });`}
-              </CodeBlock>
-            </section>
+                  </CodeBlock>
+                </BentoCard>
+                <BentoCard className="col-span-6" spotlight={false}>
+                  <span className="label mb-2 block">Devnet</span>
+                  <CodeBlock language="typescript">
+{`const loop = new Loop({
+  connection,
+  wallet,
+  cluster: "devnet",
+});`}
+                  </CodeBlock>
+                </BentoCard>
+              </BentoGrid>
+            </Section>
 
             {/* Vaults */}
-            <section id="vaults" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Vaults</h2>
+            <Section id="vaults" title="Vaults">
               <p className="text-text-secondary mb-4">
-                Vaults are user-owned accounts that store Cred tokens. Every user needs a vault to participate in the Loop ecosystem.
+                Vaults are the core primitive for value custody. Each user has a personal vault 
+                managed by their agent within on-chain policy constraints.
               </p>
+
               <CodeBlock language="typescript">
-{`// Initialize vault
-const initTx = await loop.vault.initializeVault(owner);
-
-// Deposit Cred
-const depositTx = await loop.vault.deposit(
-  owner,
-  new BN(100_000_000), // 100 Cred
-  userCredAccount,
-  vaultCredAccount
-);
-
-// Withdraw Cred
-const withdrawTx = await loop.vault.withdraw(
-  owner,
-  new BN(50_000_000), // 50 Cred
-  userCredAccount,
-  vaultCredAccount
-);
+{`// Initialize a vault
+const initTx = await loop.vault.initialize({
+  owner: wallet.publicKey,
+  agent: agentPublicKey,
+  policy: {
+    dailyLimit: 1000_000_000, // 1000 Cred
+    autoStack: true,
+    requireUserAbove: 500_000_000, // Require user sig above 500
+  },
+});
 
 // Get vault info
-const vault = await loop.vault.getVault(owner);
-console.log(\`Balance: \${vault.credBalance}\`);
-console.log(\`Stacked: \${vault.stackedBalance}\`);`}
+const vault = await loop.vault.get(wallet.publicKey);
+console.log("Balance:", vault.credBalance);
+console.log("Staked:", vault.stakedAmount);
+console.log("Agent:", vault.agent);`}
               </CodeBlock>
-            </section>
+            </Section>
 
-            {/* Cred */}
-            <section id="cred" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Cred Token</h2>
+            {/* Cred Token */}
+            <Section id="cred" title="Cred Token">
               <p className="text-text-secondary mb-4">
-                Cred is the stable value token of Loop Protocol. 1 Cred = 1 USDC, always. Wrap and unwrap at will.
+                Cred is the protocol's stable unit of account, backed 1:1 by USDC. 
+                Wrap and unwrap freely.
               </p>
-              <CodeBlock language="typescript">
-{`// Wrap USDC to Cred (1:1)
-const wrapTx = await loop.cred.wrap(
-  user,
-  new BN(100_000_000), // 100 USDC → 100 Cred
-  userUsdcAccount,
-  userCredAccount,
-  credMint,
-  reserveVault
-);
 
-// Unwrap Cred to USDC (1:1)
-const unwrapTx = await loop.cred.unwrap(
-  user,
-  new BN(50_000_000), // 50 Cred → 50 USDC
-  userCredAccount,
-  userUsdcAccount,
-  credMint,
-  reserveVault
-);`}
+              <CodeBlock language="typescript">
+{`// Wrap USDC → Cred
+const wrapTx = await loop.cred.wrap({
+  amount: 100_000_000, // 100 USDC
+  destination: vaultAddress, // Optional: direct to vault
+});
+
+// Unwrap Cred → USDC
+const unwrapTx = await loop.cred.unwrap({
+  amount: 50_000_000, // 50 Cred
+});
+
+// Check balance
+const balance = await loop.cred.getBalance(wallet.publicKey);`}
               </CodeBlock>
-            </section>
+            </Section>
 
             {/* Stacking */}
-            <section id="stacking" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Stacking</h2>
+            <Section id="stacking" title="Stacking">
               <p className="text-text-secondary mb-4">
-                Stack your Cred to earn yield. Longer lock periods = higher APY.
+                Stack Cred to earn yield from protocol fees. Longer lock periods earn higher APY.
               </p>
-              <div className="bg-bg-surface rounded-xl p-6 border border-border-subtle mb-6">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-text-muted">
-                      <th className="text-left pb-3">Duration</th>
-                      <th className="text-right pb-3">APY</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-text-secondary">
-                    <tr><td>7 days</td><td className="text-right">5%</td></tr>
-                    <tr><td>14 days</td><td className="text-right">7%</td></tr>
-                    <tr><td>30 days</td><td className="text-right">10%</td></tr>
-                    <tr><td>90 days</td><td className="text-right">15%</td></tr>
-                    <tr><td>180 days</td><td className="text-right">18%</td></tr>
-                    <tr><td>365 days</td><td className="text-right text-forest font-semibold">20%</td></tr>
-                  </tbody>
-                </table>
-              </div>
+
               <CodeBlock language="typescript">
-{`// Stack Cred for 90 days (15% APY)
-const stackTx = await loop.vault.stack(
-  owner,
-  new BN(1000_000_000), // 1000 Cred
-  90 // days
-);
+{`// Stack with lock period
+const stackTx = await loop.vault.stack({
+  amount: 1000_000_000, // 1000 Cred
+  lockPeriod: 90, // 90 days for bonus APY
+});
 
-// Calculate APY for any duration
-const apy = loop.vault.calculateApy(90); // Returns 1500 (15% in basis points)
+// Unstake (after lock expires)
+const unstakeTx = await loop.vault.unstake({
+  amount: 500_000_000,
+});
 
-// Claim yield from a stack
-const claimTx = await loop.vault.claimYield(owner, stackAddress);
+// Claim yield
+const claimTx = await loop.vault.claimYield();
 
-// Unstack after lock period
-const unstackTx = await loop.vault.unstack(owner, stackAddress);`}
+// Get staking info
+const position = await loop.vault.getPosition(wallet.publicKey);
+console.log({
+  staked: position.stakedAmount,
+  apy: position.currentApy,
+  pendingYield: position.pendingYield,
+  unlockDate: position.unlockDate,
+});`}
               </CodeBlock>
-            </section>
+            </Section>
 
-            {/* Agents */}
-            <section id="agents" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Service Agents</h2>
+            {/* Service Agents */}
+            <Section id="agents" title="Service Agents">
               <p className="text-text-secondary mb-4">
-                Register service agents that capture value and earn fees for their creators.
+                Register agents with bonding curve tokens. Agent tokens appreciate as adoption grows.
               </p>
+
               <CodeBlock language="typescript">
-{`// Register a service agent
-const registerTx = await loop.avp.registerServiceAgent(
-  creator,
-  agentPubkey,
-  'https://arweave.net/metadata-uri',
-  creatorOxoAccount
-);
+{`// Register a new agent
+const registerTx = await loop.agents.register({
+  name: "ShopCapture Pro",
+  capabilities: ["shopping_capture", "data_licensing"],
+  feePercentage: 5, // 5% of captured value
+  metadata: {
+    description: "Captures value from retail purchases",
+    website: "https://shopcapture.ai",
+  },
+});
 
-// Declare capabilities
-const capabilities = [
-  loop.avp.createCapabilityId('CAPTURE_SHOPPING'),
-  loop.avp.createCapabilityId('CAPTURE_DATA'),
-];
-const declareTx = await loop.avp.declareCapabilities(agentPubkey, capabilities);
+// Get agent info
+const agent = await loop.agents.get(agentPublicKey);
+console.log("Token Price:", agent.tokenPrice);
+console.log("Subscribers:", agent.subscriberCount);
 
-// Check if agent is registered
-const agent = await loop.avp.getAgent(agentPubkey);
-console.log(\`Status: \${agent.status}\`);
-console.log(\`Reputation: \${agent.reputationScore}\`);`}
+// Subscribe to an agent
+const subscribeTx = await loop.agents.subscribe({
+  agent: agentPublicKey,
+  vault: vaultAddress,
+});`}
               </CodeBlock>
-            </section>
+            </Section>
 
             {/* Bonding Curves */}
-            <section id="bonding-curves" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Bonding Curves</h2>
+            <Section id="bonding-curves" title="Bonding Curves">
               <p className="text-text-secondary mb-4">
-                Each service agent can have a tradeable token on a bonding curve. Buy low, sell high.
+                Agent tokens follow a bonding curve — price increases with supply. 
+                Early adopters benefit from appreciation.
               </p>
+
               <CodeBlock language="typescript">
-{`// Create agent token with bonding curve
-const createTx = await loop.oxo.createAgentToken(
-  creator,
-  agentMint,
-  'ComputeRental',
-  'COMP',
-  'https://arweave.net/token-metadata',
-  creatorOxoAccount,
-  treasuryOxoAccount
-);
+{`// Buy agent tokens
+const buyTx = await loop.agents.buyTokens({
+  agent: agentPublicKey,
+  amount: 100, // Buy 100 tokens
+  maxPrice: 1_500_000, // Slippage protection (1.5 USDC max)
+});
 
-// Get bonding curve state
-const curve = await loop.oxo.getBondingCurve(agentMint);
-console.log(\`Supply: \${curve.tokenSupply}\`);
-console.log(\`Reserve: \${curve.oxoReserve}\`);
+// Sell agent tokens
+const sellTx = await loop.agents.sellTokens({
+  agent: agentPublicKey,
+  amount: 50,
+  minPrice: 1_200_000, // Minimum 1.2 USDC per token
+});
 
-// Buy tokens on the curve
-const buyTx = await loop.oxo.buyAgentToken(
-  buyer,
-  agentMint,
-  new BN(100_000_000), // 100 OXO to spend
-  buyerOxoAccount,
-  buyerAgentTokenAccount,
-  curveOxoAccount
-);
-
-// Sell tokens back
-const sellTx = await loop.oxo.sellAgentToken(
-  seller,
-  agentMint,
-  new BN(50_000_000), // 50 tokens to sell
-  sellerOxoAccount,
-  sellerAgentTokenAccount,
-  curveOxoAccount
-);`}
+// Get price quote
+const quote = await loop.agents.getQuote({
+  agent: agentPublicKey,
+  amount: 100,
+  side: "buy",
+});
+console.log("Price per token:", quote.pricePerToken);
+console.log("Total cost:", quote.totalCost);`}
               </CodeBlock>
-            </section>
-
-            {/* Capture Modules */}
-            <section id="capture-modules" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Capture Modules</h2>
-              <p className="text-text-secondary mb-4">
-                11 different ways to capture value into user vaults:
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                {[
-                  { icon: "🛒", name: "Shopping", desc: "Merchant rewards" },
-                  { icon: "📊", name: "Data", desc: "Data licensing" },
-                  { icon: "🔗", name: "Referral", desc: "Affiliate commissions" },
-                  { icon: "👁️", name: "Attention", desc: "Ad viewing rewards" },
-                  { icon: "🖥️", name: "Compute", desc: "GPU/CPU rental" },
-                  { icon: "🌐", name: "Network", desc: "Node participation" },
-                  { icon: "🧠", name: "Skill", desc: "Behavior models" },
-                  { icon: "💧", name: "Liquidity", desc: "DeFi yields" },
-                  { icon: "⚡", name: "Energy", desc: "Power trading" },
-                  { icon: "👥", name: "Social", desc: "Social graphs" },
-                  { icon: "🛡️", name: "Insurance", desc: "Coverage premiums" },
-                ].map((mod) => (
-                  <div key={mod.name} className="bg-bg-surface rounded-lg p-4 border border-border-subtle">
-                    <span className="text-2xl">{mod.icon}</span>
-                    <h4 className="font-semibold mt-2">{mod.name}</h4>
-                    <p className="text-text-muted text-sm">{mod.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
+            </Section>
 
             {/* Program IDs */}
-            <section id="program-ids" className="mb-12">
-              <h2 className="text-2xl font-bold mb-4">Program IDs (Mainnet)</h2>
-              <div className="bg-bg-surface rounded-xl p-6 border border-border-subtle overflow-x-auto">
-                <table className="w-full text-sm font-mono">
+            <Section id="program-ids" title="Program IDs">
+              <p className="text-text-secondary mb-4">
+                Deployed program addresses on Solana mainnet.
+              </p>
+
+              <div className="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
+                <table className="data-table">
                   <thead>
-                    <tr className="text-text-muted">
-                      <th className="text-left pb-3">Program</th>
-                      <th className="text-left pb-3">Address</th>
+                    <tr>
+                      <th>Program</th>
+                      <th>Address</th>
                     </tr>
                   </thead>
-                  <tbody className="text-text-secondary">
-                    <tr className="border-t border-border-subtle">
-                      <td className="py-2">loop_cred</td>
-                      <td className="py-2 text-forest-light">HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG</td>
+                  <tbody>
+                    <tr>
+                      <td className="text-accent">CRED</td>
+                      <td className="font-mono text-xs">HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG</td>
                     </tr>
-                    <tr className="border-t border-border-subtle">
-                      <td className="py-2">loop_vault</td>
-                      <td className="py-2 text-forest-light">J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT</td>
+                    <tr>
+                      <td className="text-accent">VAULT</td>
+                      <td className="font-mono text-xs">J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT</td>
                     </tr>
-                    <tr className="border-t border-border-subtle">
-                      <td className="py-2">loop_shopping</td>
-                      <td className="py-2 text-forest-light">HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ</td>
+                    <tr>
+                      <td className="text-accent">SHOPPING</td>
+                      <td className="font-mono text-xs">HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ</td>
+                    </tr>
+                    <tr>
+                      <td className="text-accent">Cred Mint</td>
+                      <td className="font-mono text-xs">9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              <p className="text-text-muted text-sm mt-4">
-                AVP, OXO, and VTP programs coming soon to mainnet.
-              </p>
-            </section>
+            </Section>
 
-            {/* CTA */}
-            <section className="bg-gradient-to-br from-forest/20 to-gold/10 rounded-2xl p-8 border border-forest/30">
-              <h2 className="text-2xl font-bold mb-4">Ready to Build?</h2>
-              <p className="text-text-secondary mb-6">
-                Join the Loop ecosystem and start capturing value for your users.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link 
-                  href="/launch"
-                  className="px-6 py-3 bg-forest text-white rounded-xl font-semibold hover:bg-forest-light transition-colors"
-                >
-                  Launch an Agent
-                </Link>
-                <a 
-                  href="https://github.com/OAR-Technologies-Inc/loop-protocol/sdk"
-                  target="_blank"
-                  className="px-6 py-3 bg-bg-elevated text-text-primary rounded-xl font-semibold hover:bg-bg-hover transition-colors"
-                >
-                  View on GitHub →
-                </a>
-              </div>
-            </section>
-          </div>
-        </main>
+            {/* Footer */}
+            <div className="mt-16 pt-8 border-t border-white/5">
+              <BentoGrid className="gap-4">
+                <BentoCard className="col-span-6" spotlight={false}>
+                  <span className="label mb-2 block">GitHub</span>
+                  <a 
+                    href="https://github.com/OAR-Technologies-Inc/loop-protocol" 
+                    target="_blank"
+                    className="text-accent font-mono text-sm hover:underline"
+                  >
+                    OAR-Technologies-Inc/loop-protocol →
+                  </a>
+                </BentoCard>
+                <BentoCard className="col-span-6" spotlight={false}>
+                  <span className="label mb-2 block">Support</span>
+                  <a 
+                    href="mailto:dev@looplocal.io"
+                    className="text-accent font-mono text-sm hover:underline"
+                  >
+                    dev@looplocal.io →
+                  </a>
+                </BentoCard>
+              </BentoGrid>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
 }
 
-// Code block component
-function CodeBlock({ children, language }: { children: string; language: string }) {
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="relative group">
-      <pre className="bg-bg-elevated rounded-xl p-4 overflow-x-auto border border-border-subtle">
-        <code className={`language-${language} text-sm font-mono text-text-secondary`}>
-          {children}
-        </code>
+    <section id={id} className="mb-12 scroll-mt-24">
+      <h2 className="heading-lg mb-4">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function CodeBlock({ children, language = "typescript" }: { children: string; language?: string }) {
+  return (
+    <div className="relative">
+      <span className="absolute top-3 right-3 label text-[9px]">{language}</span>
+      <pre className="bg-black/40 border border-white/10 rounded-lg p-4 overflow-x-auto">
+        <code className="text-sm font-mono text-text-secondary">{children}</code>
       </pre>
-      <button 
-        className="absolute top-3 right-3 px-2 py-1 bg-bg-surface rounded text-xs text-text-muted opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={() => navigator.clipboard.writeText(children)}
-      >
-        Copy
-      </button>
     </div>
   );
 }

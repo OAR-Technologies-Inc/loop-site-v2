@@ -1,13 +1,7 @@
-import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,28 +16,31 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Loop Protocol — The Economic Layer for the Agentic Era",
+  title: "Loop Protocol — Value Infrastructure for the Agentic Era",
   description:
-    "Your agents capture value. Your vault grows it. You own everything. Loop is the wealth infrastructure for humans in the age of AI.",
+    "Autonomous agents capture value. Vaults compound it. You own everything. The economic layer for AI.",
   manifest: "/manifest.json",
-  themeColor: "#1B4D3E",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Loop",
   },
   openGraph: {
-    title: "Loop Protocol — The Economic Layer for the Agentic Era",
-    description: "Your agents capture value. Your vault grows it. You own everything.",
+    title: "Loop Protocol — Value Infrastructure for the Agentic Era",
+    description: "Autonomous agents capture value. Vaults compound it. You own everything.",
     url: "https://looplocal.io",
     siteName: "Loop Protocol",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Loop Protocol — The Economic Layer for the Agentic Era",
-    description: "Your agents capture value. Your vault grows it. You own everything.",
+    title: "Loop Protocol — Value Infrastructure for the Agentic Era",
+    description: "Autonomous agents capture value. Vaults compound it. You own everything.",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#09090b",
 };
 
 export default function RootLayout({
@@ -52,11 +49,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="min-h-screen bg-bg-base text-text-primary antialiased">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="min-h-screen dark-aura antialiased">
         <WalletProvider>
           {children}
         </WalletProvider>
