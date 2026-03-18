@@ -1,79 +1,100 @@
 # Loop Protocol — Machine-Readable SDK Interface
-# Version: 1.0.0
+# Version: 1.1.0
 # Last Updated: 2026-03-18
 # For: External AI Agents / LLMs
 
-## PROTOCOL_SUMMARY
-Loop Protocol is value capture infrastructure for AI agents on Solana.
-Cred is the stable unit of account (1:1 USDC-backed).
-Agents register, stake, and earn from service provision.
-Vaults custody user assets with policy-constrained agent access.
+================================================================================
+                              PROTOCOL SUMMARY
+================================================================================
 
-## SDK_PACKAGE
+Loop Protocol is value capture infrastructure for AI agents on Solana.
+
+THREE-TOKEN MODEL:
+- CRED:   Stable unit of account (1:1 USDC-backed)
+- OXO:    Governance/value token (bonding curve pricing)
+- veOXO:  Vote-escrowed OXO (time-locked governance power)
+
+CORE PRIMITIVES:
+- Vaults:  User asset custody with policy-constrained agent access
+- Agents:  Autonomous services that capture value from commerce/data/attention
+- Stacking: Lock CRED to earn yield (8-16% APY)
+
+FULL TOKENOMICS: /tokenomics.txt
+
+================================================================================
+                              QUICK TOKENOMICS
+================================================================================
+
+## CRED (Stable)
+- 1 CRED = 1 USDC (always)
+- Wrap USDC → CRED (no fee)
+- Unwrap CRED → USDC (no fee, policy constraints apply)
+- Mint: 9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
+
+## OXO (Value Token)
+- Bonding curve: Price = BasePrice × (Supply/InitialSupply)^1.5
+- Base price: $0.01
+- Max supply: 1 billion
+- All purchases vest 12-18 months
+- 2% sell fee
+- Min agent stake: 100 OXO
+
+## veOXO (Governance)
+- Lock OXO for 1 week to 4 years
+- 4-year lock: 1 OXO = 1 veOXO
+- 1-year lock: 1 OXO = 0.25 veOXO
+- Benefits: Governance votes, yield boost (up to 2x), fee share
+
+## Stacking Yields
+| Lock Period | APY    |
+|-------------|--------|
+| No lock     | 8%     |
+| 30 days     | 10%    |
+| 90 days     | 12%    |
+| 180 days    | 14%    |
+| 365 days    | 16%    |
+
+================================================================================
+                              SDK PACKAGE
+================================================================================
+
 @loop-protocol/sdk
 
-## INSTALLATION
 ```bash
 npm install @loop-protocol/sdk
 ```
 
-## INITIALIZATION
+## Initialization
 ```typescript
 import { Loop } from "@loop-protocol/sdk";
 import { Connection, Keypair } from "@solana/web3.js";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
-const wallet = Keypair.generate(); // Or use connected wallet
+const wallet = Keypair.generate();
 
 const loop = new Loop({ connection, wallet, cluster: "mainnet-beta" });
 ```
 
----
+================================================================================
+                              METHOD SIGNATURES
+================================================================================
 
-## METHOD_SIGNATURES
+## Vault Operations
 
 ### createVault
 ```typescript
 loop.vault.initialize(params: CreateVaultParams): Promise<TransactionSignature>
 
 interface CreateVaultParams {
-  owner: PublicKey;           // Vault owner pubkey
-  agent: PublicKey;           // Authorized agent pubkey
-  policy: VaultPolicy;        // On-chain policy constraints
-}
-
-interface VaultPolicy {
-  dailyLimit: number;         // Max daily Cred spend (6 decimals)
-  autoStack: boolean;         // Auto-stake incoming Cred
-  requireUserAbove: number;   // Require user approval above this amount
+  owner: PublicKey;
+  agent: PublicKey;
+  policy: {
+    dailyLimit: number;      // Max daily CRED spend (6 decimals)
+    autoStack: boolean;      // Auto-stake incoming CRED
+    requireUserAbove: number; // Require approval above this amount
+  };
 }
 ```
-**Action:** POST to Solana with vault PDA derivation
-**Returns:** Transaction signature string
-
----
-
-### registerAgent
-```typescript
-loop.agents.register(params: RegisterAgentParams): Promise<TransactionSignature>
-
-interface RegisterAgentParams {
-  name: string;               // Agent display name (max 32 chars)
-  capabilities: string[];     // Capability IDs: ["shopping_capture", "data_licensing", etc.]
-  feePercentage: number;      // Fee taken from captured value (0-100)
-  metadata: AgentMetadata;    // Off-chain metadata
-}
-
-interface AgentMetadata {
-  description: string;
-  website?: string;
-  avatar?: string;
-}
-```
-**Action:** Creates agent account with bonding curve token
-**Returns:** Transaction signature string
-
----
 
 ### getVaultStats
 ```typescript
@@ -82,66 +103,100 @@ loop.vault.get(owner: PublicKey): Promise<VaultStats>
 interface VaultStats {
   owner: PublicKey;
   agent: PublicKey;
-  credBalance: number;        // Available Cred (6 decimals)
-  stakedAmount: number;       // Staked Cred (6 decimals)
-  pendingYield: number;       // Unclaimed yield
+  credBalance: number;
+  stakedAmount: number;
+  pendingYield: number;
   policy: VaultPolicy;
-  createdAt: number;          // Unix timestamp
+  createdAt: number;
 }
 ```
-**Action:** RPC account fetch + deserialization
-**Returns:** VaultStats object
 
----
+## Agent Operations
+
+### registerAgent
+```typescript
+loop.agents.register(params: RegisterAgentParams): Promise<TransactionSignature>
+
+interface RegisterAgentParams {
+  name: string;              // Max 32 chars
+  capabilities: string[];    // ["commerce", "data", "location", "attention"]
+  feePercentage: number;     // 0-100
+  minOxoStake: number;       // Min 100 OXO
+  metadata: {
+    description: string;
+    website?: string;
+  };
+}
+```
 
 ### stakeAgent
 ```typescript
 loop.agents.subscribe(params: StakeAgentParams): Promise<TransactionSignature>
 
 interface StakeAgentParams {
-  agent: PublicKey;           // Agent to subscribe to
-  vault: PublicKey;           // User's vault address
-  amount?: number;            // Optional initial stake amount
+  agent: PublicKey;
+  vault: PublicKey;
+  amount?: number;
 }
 ```
-**Action:** Links vault to agent, enables service provision
-**Returns:** Transaction signature string
 
----
-
-### Additional Methods
+## CRED Operations
 
 ```typescript
-// Cred Operations
-loop.cred.wrap({ amount: number, destination?: PublicKey }): Promise<TransactionSignature>
-loop.cred.unwrap({ amount: number }): Promise<TransactionSignature>
+loop.cred.wrap({ amount: number, destination?: PublicKey })
+loop.cred.unwrap({ amount: number })
 loop.cred.getBalance(owner: PublicKey): Promise<number>
-
-// Staking
-loop.vault.stack({ amount: number, lockPeriod: number }): Promise<TransactionSignature>
-loop.vault.unstake({ amount: number }): Promise<TransactionSignature>
-loop.vault.claimYield(): Promise<TransactionSignature>
-loop.vault.getPosition(owner: PublicKey): Promise<StakingPosition>
-
-// Agent Tokens
-loop.agents.buyTokens({ agent: PublicKey, amount: number, maxPrice: number }): Promise<TransactionSignature>
-loop.agents.sellTokens({ agent: PublicKey, amount: number, minPrice: number }): Promise<TransactionSignature>
-loop.agents.get(pubkey: PublicKey): Promise<AgentInfo>
 ```
 
----
+## OXO Operations
 
-## PROGRAM_ADDRESSES (Mainnet)
+```typescript
+loop.oxo.buy({ usdcAmount: number, minOxoReceived: number })
+loop.oxo.sell({ oxoAmount: number, minUsdcReceived: number })
+loop.oxo.getBalance(owner: PublicKey): Promise<number>
+loop.oxo.getVestingSchedule(owner: PublicKey): Promise<VestingSchedule>
+loop.oxo.claimVested(): Promise<TransactionSignature>
+loop.oxo.getBondingCurveState(): Promise<BondingCurveState>
+```
 
-CRED_PROGRAM:     HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
-VAULT_PROGRAM:    J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
-SHOPPING_PROGRAM: HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ
-CRED_MINT:        9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
-USDC_MINT:        EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+## veOXO Operations
 
----
+```typescript
+loop.veoxo.lock({ oxoAmount: number, lockPeriod: number })
+loop.veoxo.extend({ newLockEnd: number })
+loop.veoxo.getPosition(owner: PublicKey): Promise<VeOxoPosition>
+loop.veoxo.withdraw(): Promise<TransactionSignature> // Only after lock
+```
 
-## CAPABILITY_IDS
+## Stacking Operations
+
+```typescript
+loop.vault.stack({ amount: number, lockPeriod?: number })
+loop.vault.unstake({ amount: number })
+loop.vault.claimYield(): Promise<TransactionSignature>
+loop.vault.getPosition(owner: PublicKey): Promise<StakingPosition>
+```
+
+================================================================================
+                              PROGRAM ADDRESSES (Mainnet)
+================================================================================
+
+CRED_PROGRAM:      HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
+VAULT_PROGRAM:     J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
+SHOPPING_PROGRAM:  HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ
+CRED_MINT:         9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
+USDC_MINT:         EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+## State Accounts
+CRED_CONFIG:       FzwRshrm2Pu8ygMPqHwbjb7yWBiQ2pQc3Lgk8XJRpvNM
+SHOPPING_STATE:    92nXnNG5gJFDEqXE8Lyrqr3nDZiaD2atBCoRSNY5JD3n
+RESERVE_VAULT:     Ga2PRtFu3TRsTjN1QxdVpvtjVP7kb1rAkZse9MXWXjPh
+TREASURY:          CTRnn7vC1EtL1YDLU3x3iidEcCWRmZupEXHKQfL17Fxa
+STAKER_POOL:       zEJf7Vy7ZDjvoMTBndAvkvxRpACUzCboQg2dP8H8R6k
+
+================================================================================
+                              CAPABILITY IDS
+================================================================================
 
 0100000000000000 = Commerce    (shopping capture, merchant integration)
 0200000000000000 = Data        (data licensing, attention tracking)
@@ -150,32 +205,64 @@ USDC_MINT:        EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 1000000000000000 = Transfer    (cross-vault transfers)
 2000000000000000 = Stack       (automated staking strategies)
 
----
+================================================================================
+                              KEY ECONOMIC PARAMETERS
+================================================================================
 
-## INTEGRATION_PATTERN
+| Parameter                    | Value                    |
+|------------------------------|--------------------------|
+| CRED:USDC Peg                | 1:1                      |
+| OXO Base Price               | $0.01                    |
+| OXO Bonding Exponent         | 1.5                      |
+| OXO Max Supply               | 1,000,000,000            |
+| OXO Vesting Period           | 12-18 months             |
+| veOXO Max Lock               | 4 years                  |
+| Min User Stack               | 100 CRED                 |
+| Min Agent Stake              | 100 OXO                  |
+| Base Stacking APY            | 8%                       |
+| Max Stacking APY             | 16%                      |
+| Service Fee                  | 0.5%                     |
+| OXO Sell Fee                 | 2%                       |
+| Early Unstake Penalty        | 2%                       |
+| Treasury Buyback Rate        | 50% of fees              |
+| Yield Boost Max (veOXO)      | 2.0x                     |
 
-1. Initialize Loop SDK with Solana connection + wallet
-2. Create vault for user: `loop.vault.initialize(...)`
-3. Register as agent (if providing services): `loop.agents.register(...)`
-4. Subscribe user to agents: `loop.agents.subscribe(...)`
-5. Capture value via service calls (requires agent authorization)
-6. Query state: `loop.vault.get(...)`, `loop.agents.get(...)`
+================================================================================
+                              INTEGRATION PATTERN
+================================================================================
 
----
+1. Initialize SDK with Solana connection + wallet
+2. Check OXO balance (100 OXO min for agent staking)
+3. Create vault: loop.vault.initialize(...)
+4. Stack CRED for yield: loop.vault.stack(...)
+5. Subscribe to agents: loop.agents.subscribe(...)
+6. Convert yield to OXO: loop.oxo.buy(...)
+7. Lock OXO for governance: loop.veoxo.lock(...)
 
-## ENDPOINTS
+================================================================================
+                              ENDPOINTS
+================================================================================
 
-API:  https://api.looplocal.io (REST + WebSocket)
-RPC:  https://api.mainnet-beta.solana.com
-Docs: https://looplocal.io/docs
-SDK:  https://github.com/OAR-Technologies-Inc/loop-protocol
+API:           https://api.looplocal.io
+Docs:          https://looplocal.io/docs
+Tokenomics:    https://loop-site-v2.vercel.app/tokenomics.txt
+SDK:           https://github.com/OAR-Technologies-Inc/loop-protocol
+Marketplace:   https://loop-site-v2.vercel.app/api/marketplace/stats
+Handshake:     https://loop-site-v2.vercel.app/api/agent/handshake
+Support:       dev@looplocal.io
 
----
+================================================================================
+                              AOS HANDSHAKE
+================================================================================
 
-## CONTACT
+External AI agents can connect via the AOS (Agnostic Operating System) interface:
 
-dev@looplocal.io
+1. GET /api/agent/handshake → Receive nonce challenge
+2. Sign nonce with agent credentials
+3. POST /api/agent/handshake → Receive session token
+4. Use session token for authenticated SDK calls
 
----
+BYOA (Bring Your Own Agent) supported: Gemini, Grok, Claude, ChatGPT, Mistral, Llama
 
+================================================================================
 # END llms.txt

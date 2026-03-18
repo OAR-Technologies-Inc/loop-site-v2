@@ -1,0 +1,408 @@
+# Loop Protocol — Tokenomics Specification
+# Version: 1.0.0
+# Last Updated: 2026-03-18
+# For: External AI Agents / LLMs / Economic Analysis
+
+================================================================================
+                              TOKEN OVERVIEW
+================================================================================
+
+Loop Protocol operates a three-token economic model:
+
+1. CRED  — Stable unit of account (1:1 USDC-backed)
+2. OXO   — Governance and value accrual token (bonding curve)
+3. veOXO — Vote-escrowed OXO (time-locked governance power)
+
+================================================================================
+                              1. CRED TOKEN
+================================================================================
+
+## Purpose
+Cred is the stable internal currency for value capture and transfer within the 
+Loop ecosystem. It maintains a 1:1 peg with USDC.
+
+## Properties
+- Symbol:         CRED
+- Type:           SPL Token
+- Decimals:       6
+- Peg:            1 CRED = 1 USDC
+- Mint:           9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
+- Backing:        100% USDC reserve in protocol vault
+
+## Mechanics
+
+### Wrapping (USDC → CRED)
+```
+loop.cred.wrap({ amount: 100_000_000 }) // 100 USDC → 100 CRED
+```
+- 1:1 conversion
+- No fees
+- Instant settlement
+
+### Unwrapping (CRED → USDC)
+```
+loop.cred.unwrap({ amount: 50_000_000 }) // 50 CRED → 50 USDC
+```
+- 1:1 conversion
+- No fees
+- Subject to vault policy constraints
+
+## Use Cases
+- Value capture from commerce/data/attention
+- Stacking (locking for yield)
+- Agent service payments
+- Cross-vault transfers
+
+================================================================================
+                              2. OXO TOKEN
+================================================================================
+
+## Purpose
+OXO is the governance and value accrual token. Its price appreciates naturally
+through protocol adoption via a bonding curve mechanism.
+
+## Properties
+- Symbol:         OXO
+- Type:           SPL Token-2022
+- Decimals:       6
+- Pricing:        Bonding curve (no external market dependency)
+- Vesting:        12-18 months on all purchases
+
+## Bonding Curve Formula
+
+```
+Price = BasePrice × (CirculatingSupply / InitialSupply) ^ Exponent
+
+Where:
+  BasePrice      = 0.01 USDC (initial price)
+  InitialSupply  = 1,000,000,000 OXO (1 billion)
+  Exponent       = 1.5 (superlinear growth)
+```
+
+### Price Curve (Examples)
+| Circulating Supply | Price (USDC) |
+|--------------------|--------------|
+| 10,000,000 (1%)    | $0.0001      |
+| 100,000,000 (10%)  | $0.0032      |
+| 500,000,000 (50%)  | $0.0354      |
+| 750,000,000 (75%)  | $0.0650      |
+| 1,000,000,000 (100%)| $0.1000     |
+
+### Buy Mechanics
+```
+loop.oxo.buy({ 
+  usdcAmount: 1000_000_000,  // 1000 USDC
+  minOxoReceived: 900000     // Slippage protection
+})
+```
+- Price determined by bonding curve at time of purchase
+- OXO received is vested over 12-18 months
+- No external liquidity required
+
+### Sell Mechanics
+```
+loop.oxo.sell({
+  oxoAmount: 100_000_000,    // 100 OXO (must be vested)
+  minUsdcReceived: 9_500_000 // Slippage protection
+})
+```
+- Only fully vested OXO can be sold
+- 2% sell fee (goes to treasury)
+- Price determined by bonding curve
+
+## Value Accrual Mechanisms
+
+### 1. Protocol Fee Revenue
+| Fee Source           | Rate      | Destination  |
+|---------------------|-----------|--------------|
+| Agent service calls  | 0.5%      | 50% OXO buyback, 50% staker yield |
+| CRED unwrap (early)  | 1%        | 100% OXO buyback |
+| OXO sell             | 2%        | 100% treasury |
+| Premium features     | Variable  | 100% OXO buyback |
+
+### 2. Demand Sources
+- User yield → OXO conversion (bonding curve demand)
+- Merchant staking (supply lock)
+- Agent staking requirements (min 100 OXO)
+- Governance participation (veOXO locking)
+- Treasury buybacks (50% of revenue)
+
+### 3. Supply Reduction
+- 12-18 month vesting on purchases
+- veOXO locks (up to 4 years)
+- Agent staking requirements
+- Protocol reserve (20% of supply)
+
+## Vesting Schedule
+
+All OXO acquired through the bonding curve vests over time:
+
+```
+Vesting Period: 12-18 months (based on purchase amount)
+Schedule: Linear, starting from purchase date
+
+Small purchase (<1000 OXO):   12 month vest
+Medium purchase (1000-10000): 15 month vest
+Large purchase (>10000 OXO):  18 month vest
+```
+
+### Claiming Vested OXO
+```
+loop.oxo.claimVested() // Claims all fully vested OXO
+```
+
+================================================================================
+                              3. veOXO TOKEN
+================================================================================
+
+## Purpose
+veOXO (vote-escrowed OXO) represents time-locked OXO used for governance 
+participation and enhanced yield. Inspired by Curve's veCRV model.
+
+## Properties
+- Symbol:         veOXO
+- Type:           Non-transferable position
+- Decimals:       6
+- Lock Period:    1 week to 4 years
+- Decay:          Linear to unlock date
+
+## Lock Mechanics
+
+### Creating a Lock
+```
+loop.veoxo.lock({
+  oxoAmount: 1000_000_000,   // 1000 OXO
+  lockPeriod: 365 * 4        // 4 years (max)
+})
+
+// veOXO received = OXO × (lockDays / maxLockDays)
+// 1000 OXO × (1460 / 1460) = 1000 veOXO
+```
+
+### Lock Duration → veOXO Ratio
+| Lock Duration | veOXO per OXO |
+|---------------|---------------|
+| 1 week        | 0.005         |
+| 1 month       | 0.021         |
+| 6 months      | 0.125         |
+| 1 year        | 0.25          |
+| 2 years       | 0.50          |
+| 4 years (max) | 1.00          |
+
+### Decay
+veOXO balance decays linearly as the unlock date approaches:
+```
+veOXO_remaining = initial_veOXO × (daysUntilUnlock / totalLockDays)
+```
+
+### Extending Locks
+```
+loop.veoxo.extend({
+  newLockEnd: Date.now() + (365 * 4 * 24 * 60 * 60 * 1000) // Extend to max
+})
+```
+
+## veOXO Benefits
+
+### 1. Governance Power
+- 1 veOXO = 1 vote
+- Voting on: Fee parameters, treasury allocation, protocol upgrades
+- Snapshot-based voting (no gas required)
+
+### 2. Yield Boost
+| veOXO Holdings | Yield Multiplier |
+|----------------|------------------|
+| 0              | 1.0x             |
+| 100            | 1.1x             |
+| 1,000          | 1.25x            |
+| 10,000         | 1.5x             |
+| 100,000+       | 2.0x (max)       |
+
+### 3. Protocol Revenue Share
+- veOXO holders share 50% of protocol fees
+- Distribution: Weekly, pro-rata by veOXO balance
+- Paid in: OXO (auto-bought from bonding curve)
+
+### 4. Agent Voting
+- veOXO holders vote to whitelist/delist agents
+- Minimum 1000 veOXO required to submit proposals
+- 10,000 veOXO required to execute proposals
+
+================================================================================
+                              STAKING (STACKING)
+================================================================================
+
+## User Stacking
+Users lock CRED to earn yield from protocol DeFi operations.
+
+### Stake CRED
+```
+loop.vault.stack({
+  amount: 1000_000_000,  // 1000 CRED
+  lockPeriod: 90         // 90 days (optional bonus APY)
+})
+```
+
+### Lock Period → APY Boost
+| Lock Period | Base APY | Boost  | Total APY |
+|-------------|----------|--------|-----------|
+| No lock     | 8%       | 0%     | 8%        |
+| 30 days     | 8%       | +2%    | 10%       |
+| 90 days     | 8%       | +4%    | 12%       |
+| 180 days    | 8%       | +6%    | 14%       |
+| 365 days    | 8%       | +8%    | 16%       |
+
+### Yield Sources
+1. Kamino USDC lending (5-15% APY on reserves)
+2. Agent service fees (0.5% of capture volume)
+3. Treasury buyback rewards (distributed to stackers)
+
+### Unstaking
+```
+loop.vault.unstake({ amount: 500_000_000 }) // 500 CRED
+```
+- Early unstake (before lock expiry): 2% penalty
+- Post-lock unstake: No penalty
+
+## Agent Staking
+Agents must stake OXO to operate on the network.
+
+### Minimum Requirements
+| Agent Tier   | Min OXO Stake | Max Concurrent Users |
+|--------------|---------------|----------------------|
+| Basic        | 100           | 100                  |
+| Standard     | 1,000         | 1,000                |
+| Professional | 10,000        | 10,000               |
+| Enterprise   | 100,000       | Unlimited            |
+
+### Slashing
+Agents can be slashed for:
+- Failed service calls (0.1% of stake)
+- Policy violations (5% of stake)
+- Malicious behavior (100% of stake)
+
+================================================================================
+                              TREASURY
+================================================================================
+
+## Structure
+- Vault: MmFaoYbgrFG1H6JoC99xGSnzT7hGH143kV2ZEyc5on4 (Squads Multi-sig)
+- Control: Initially admin, transitioning to DAO governance
+
+## Revenue Allocation
+| Revenue Source        | Treasury | Stakers | Buyback |
+|-----------------------|----------|---------|---------|
+| Agent service fees    | 0%       | 50%     | 50%     |
+| Early unstake penalty | 0%       | 0%      | 100%    |
+| OXO sell fee          | 100%     | 0%      | 0%      |
+| Premium subscriptions | 20%      | 30%     | 50%     |
+
+## Buyback Mechanism
+- 50% of service fees used to buy OXO from bonding curve
+- Bought OXO distributed to veOXO holders weekly
+- Creates constant buy pressure on bonding curve
+
+================================================================================
+                              PROGRAM ADDRESSES
+================================================================================
+
+## Mainnet Deployments
+
+CRED_PROGRAM:      HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
+VAULT_PROGRAM:     J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
+SHOPPING_PROGRAM:  HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ
+CRED_MINT:         9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
+USDC_MINT:         EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+## State Accounts
+
+CRED_CONFIG:       FzwRshrm2Pu8ygMPqHwbjb7yWBiQ2pQc3Lgk8XJRpvNM
+SHOPPING_STATE:    92nXnNG5gJFDEqXE8Lyrqr3nDZiaD2atBCoRSNY5JD3n
+RESERVE_VAULT:     Ga2PRtFu3TRsTjN1QxdVpvtjVP7kb1rAkZse9MXWXjPh
+TREASURY:          CTRnn7vC1EtL1YDLU3x3iidEcCWRmZupEXHKQfL17Fxa
+STAKER_POOL:       zEJf7Vy7ZDjvoMTBndAvkvxRpACUzCboQg2dP8H8R6k
+
+================================================================================
+                              KEY ECONOMIC PARAMETERS
+================================================================================
+
+| Parameter                    | Value                    |
+|------------------------------|--------------------------|
+| CRED:USDC Peg                | 1:1                      |
+| OXO Base Price               | $0.01                    |
+| OXO Bonding Exponent         | 1.5                      |
+| OXO Max Supply               | 1,000,000,000            |
+| OXO Vesting Period           | 12-18 months             |
+| veOXO Max Lock               | 4 years                  |
+| Min User Stack               | 100 CRED                 |
+| Min Agent Stake (OXO)        | 100 OXO                  |
+| Base Stacking APY            | 8%                       |
+| Max Stacking APY             | 16%                      |
+| Service Fee                  | 0.5%                     |
+| OXO Sell Fee                 | 2%                       |
+| Early Unstake Penalty        | 2%                       |
+| Treasury Buyback Rate        | 50% of fees              |
+| Yield Boost Max (veOXO)      | 2.0x                     |
+
+================================================================================
+                              SDK METHODS
+================================================================================
+
+## CRED Operations
+```typescript
+loop.cred.wrap({ amount, destination? })
+loop.cred.unwrap({ amount })
+loop.cred.getBalance(owner)
+loop.cred.getSupply()
+```
+
+## OXO Operations
+```typescript
+loop.oxo.buy({ usdcAmount, minOxoReceived })
+loop.oxo.sell({ oxoAmount, minUsdcReceived })
+loop.oxo.getBalance(owner)
+loop.oxo.getVestingSchedule(owner)
+loop.oxo.claimVested()
+loop.oxo.getBondingCurveState()
+```
+
+## veOXO Operations
+```typescript
+loop.veoxo.lock({ oxoAmount, lockPeriod })
+loop.veoxo.extend({ newLockEnd })
+loop.veoxo.getPosition(owner)
+loop.veoxo.getTotalSupply()
+loop.veoxo.withdraw() // Only after lock expires
+```
+
+## Stacking Operations
+```typescript
+loop.vault.stack({ amount, lockPeriod? })
+loop.vault.unstake({ amount })
+loop.vault.claimYield()
+loop.vault.getPosition(owner)
+loop.vault.getProtocolStats()
+```
+
+================================================================================
+                              ENDPOINTS
+================================================================================
+
+API:         https://api.looplocal.io
+Docs:        https://looplocal.io/docs
+Tokenomics:  https://loop-site-v2.vercel.app/tokenomics.txt
+SDK:         https://github.com/OAR-Technologies-Inc/loop-protocol
+Support:     dev@looplocal.io
+
+================================================================================
+                              VERSION HISTORY
+================================================================================
+
+v1.0.0 (2026-03-18) - Initial tokenomics specification
+  - Three-token model: CRED, OXO, veOXO
+  - Bonding curve mechanics
+  - Stacking and yield parameters
+  - Governance framework
+
+================================================================================
+# END tokenomics.txt
