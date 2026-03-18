@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton } from "@/components/ui";
+import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton, SystemTicker } from "@/components/ui";
 
 export default function HomePage() {
   const [tvl, setTvl] = useState(0);
@@ -302,7 +302,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-12 px-6">
+      <footer className="border-t border-white/5 py-12 px-6 pb-20">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
@@ -325,6 +325,9 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* System Ticker */}
+      <SystemTicker />
     </div>
   );
 }

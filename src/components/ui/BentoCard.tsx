@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 
 interface BentoCardProps {
   children: React.ReactNode;
@@ -16,40 +16,55 @@ export function BentoCard({
   hover = true 
 }: BentoCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [spotlightPos, setSpotlightPos] = useState({ x: 0, y: 0 });
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!cardRef.current || !spotlight) return;
     const rect = cardRef.current.getBoundingClientRect();
-    setSpotlightPos({
+    setMousePos({
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     });
-  };
+  }, [spotlight]);
 
   return (
     <div
       ref={cardRef}
-      className={`bento-card relative p-6 ${hover ? 'hover-glow' : ''} ${className}`}
+      className={`bento-card-v2 relative p-6 ${className}`}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={{
+        '--mouse-x': `${mousePos.x}px`,
+        '--mouse-y': `${mousePos.y}px`,
+      } as React.CSSProperties}
     >
-      {spotlight && isHovered && (
+      {/* Gradient border overlay */}
+      <div className="absolute inset-0 rounded-xl pointer-events-none border-gradient" />
+      
+      {/* Mouse-follow spotlight */}
+      {spotlight && (
         <div
-          className="absolute pointer-events-none"
-          style={{
-            left: spotlightPos.x,
-            top: spotlightPos.y,
-            width: 300,
-            height: 300,
-            transform: 'translate(-50%, -50%)',
-            background: 'radial-gradient(circle, rgba(0, 255, 204, 0.08) 0%, transparent 70%)',
-            borderRadius: '50%',
-          }}
-        />
+          className="absolute inset-0 rounded-xl pointer-events-none overflow-hidden"
+          style={{ opacity: isHovered ? 1 : 0, transition: 'opacity 0.3s ease' }}
+        >
+          <div
+            className="absolute"
+            style={{
+              left: mousePos.x,
+              top: mousePos.y,
+              width: 500,
+              height: 500,
+              transform: 'translate(-50%, -50%)',
+              background: 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)',
+              borderRadius: '50%',
+            }}
+          />
+        </div>
       )}
+      
+      {/* Content */}
       <div className="relative z-10">{children}</div>
     </div>
   );

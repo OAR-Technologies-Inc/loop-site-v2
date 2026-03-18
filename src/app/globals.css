@@ -527,3 +527,86 @@ body {
 @media (max-width: 640px) {
   .col-span-8, .col-span-6, .col-span-4, .col-span-3 { grid-column: span 2; }
 }
+
+/* ========================================
+   BENTO CARD V2 - Gradient Borders
+   ======================================== */
+
+.bento-card-v2 {
+  background: rgba(24, 24, 27, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  /* Base border - will be overlaid by gradient */
+  border: 1px solid transparent;
+}
+
+/* Gradient border that fades from white/20 at top-left to transparent at bottom-right */
+.bento-card-v2 .border-gradient {
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.02) 70%,
+    transparent 100%
+  );
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+  transition: all 0.3s ease;
+}
+
+.bento-card-v2:hover .border-gradient {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 204, 0.4) 0%,
+    rgba(0, 255, 204, 0.15) 30%,
+    rgba(255, 255, 255, 0.05) 70%,
+    transparent 100%
+  );
+}
+
+.bento-card-v2:hover {
+  box-shadow: 
+    0 0 40px rgba(0, 255, 204, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ========================================
+   SYSTEM TICKER
+   ======================================== */
+
+.ticker-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+}
+
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
