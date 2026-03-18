@@ -7,8 +7,8 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-// Import LoopSDK from linked package
-import { LoopSDK } from "loop-protocol-ai-sdk";
+// Import LoopSDK - uncomment when SDK is published to npm
+// import { LoopSDK } from "@loop-protocol/sdk";
 
 const CAPABILITIES = [
   { id: "shopping_capture", name: "Shopping Capture", icon: "🛒", description: "Capture value from retail purchases" },
