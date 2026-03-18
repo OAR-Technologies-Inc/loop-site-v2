@@ -230,10 +230,10 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     }]);
     
     try {
-      const res = await fetch("/api/v1/ghost/pair/create", {
+      const res = await fetch("/api/v1/ghost/pair", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nonce }),
+        body: JSON.stringify({ action: "create", nonce }),
       });
       
       const data = await res.json();
@@ -271,7 +271,11 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     
     pairingPollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/v1/ghost/pair/status?browserSessionId=${browserSessionId}`);
+        const res = await fetch("/api/v1/ghost/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "status", browserSessionId }),
+        });
         const data = await res.json();
         
         if (data.status === "paired" && data.agent) {
