@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { C2Nav, BentoCard, BentoGrid, ShimmerButton, StatusIndicator } from "@/components/ui";
+import { C2Nav, BentoCard, ShimmerButton, StatusIndicator } from "@/components/ui";
 
 // Import LoopSDK - uncomment when SDK is published to npm
 // import { LoopSDK } from "@loop-protocol/sdk";
@@ -20,18 +20,9 @@ const CAPABILITIES = [
   { id: "a2a_negotiation", name: "A2A Commerce", icon: "🤝", desc: "Agent-to-agent" },
 ];
 
-const CAPABILITY_MAP: Record<string, string> = {
-  shopping_capture: "Shopping Capture",
-  data_licensing: "Data Licensing",
-  gpu_rental: "Compute Rental",
-  liquidity_provision: "Liquidity Provision",
-  reclaim_proofs: "Reclaim Proofs",
-  a2a_negotiation: "A2A Negotiation",
-};
-
 export default function LaunchAgentPage() {
   const { connection } = useConnection();
-  const { publicKey, connected, signTransaction, connecting } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   
   const [step, setStep] = useState<"connect" | "configure" | "launch" | "success">("connect");
   const [agentName, setAgentName] = useState("");
@@ -98,9 +89,9 @@ export default function LaunchAgentPage() {
       setAgentPubkey("Agent" + publicKey.toString().slice(0, 8) + Math.random().toString(36).slice(2, 6));
       setStep("success");
       
-    } catch (err: any) {
+    } catch (err) {
       console.error("Launch failed:", err);
-      setError(err.message || "Failed to launch agent");
+      setError(err instanceof Error ? err.message : "Failed to launch agent");
     } finally {
       setLaunching(false);
     }

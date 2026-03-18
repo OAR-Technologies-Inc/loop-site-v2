@@ -80,7 +80,7 @@ export function CTA() {
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-3 text-sm text-forest-light"
               >
-                You're on the list. We'll be in touch.
+                You&apos;re on the list. We&apos;ll be in touch.
               </motion.p>
             )}
           </form>

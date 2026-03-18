@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { Cpu, Home } from "lucide-react";
+import { Cpu } from "lucide-react";
 import { AgentHUD } from "./AgentHUD";
 
 /**

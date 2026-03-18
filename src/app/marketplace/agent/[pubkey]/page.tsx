@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
 
@@ -29,7 +28,7 @@ interface Agent {
   status: string;
   created_at: number;
   capabilities: { capability_id: string; capability_name: string | null }[];
-  recent_calls?: any[];
+  recent_calls?: { id: string; timestamp: number; caller: string }[];
 }
 
 export default function AgentDetailPage() {
@@ -40,11 +39,7 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAgent();
-  }, [pubkey]);
-
-  async function fetchAgent() {
+  const fetchAgent = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/agents/${pubkey}`);
@@ -56,7 +51,11 @@ export default function AgentDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [pubkey]);
+
+  useEffect(() => {
+    fetchAgent();
+  }, [fetchAgent]);
 
   if (loading) {
     return (

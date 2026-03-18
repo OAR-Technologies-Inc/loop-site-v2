@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ImmersiveNav, BentoCard, BentoGrid, ShimmerButton, GridBackground } from "@/components/ui";
 import { 
   Target, Database, MapPin, Eye, ArrowLeftRight, TrendingUp, Bot, 
-  Terminal, ChevronRight, Activity, Plus, Play, BarChart3, Coins
+  Terminal, ChevronRight, Plus, Play, BarChart3, Coins
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
@@ -42,9 +42,30 @@ export default function MarketplacePage() {
   const [pulsingIndex, setPulsingIndex] = useState<number | null>(null);
   const [captureToast, setCaptureToast] = useState<{ index: number; amount: number } | null>(null);
 
+  const fetchAgents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        sort: sortBy,
+        limit: "12",
+        status: "active",
+      });
+      if (selectedCapability) params.set("capability", selectedCapability);
+      
+      const res = await fetch(`${API_URL}/api/agents?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      setAgents(data.agents || []);
+    } catch {
+      setAgents(getMockAgents());
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCapability, sortBy]);
+
   useEffect(() => {
     fetchAgents();
-  }, [selectedCapability, sortBy]);
+  }, [fetchAgents]);
 
   // Random pulse effect every 5-10 seconds
   useEffect(() => {
@@ -65,27 +86,6 @@ export default function MarketplacePage() {
 
     return () => clearInterval(interval);
   }, [agents.length]);
-
-  async function fetchAgents() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        sort: sortBy,
-        limit: "12",
-        status: "active",
-      });
-      if (selectedCapability) params.set("capability", selectedCapability);
-      
-      const res = await fetch(`${API_URL}/api/agents?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setAgents(data.agents || []);
-    } catch {
-      setAgents(getMockAgents());
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const filteredAgents = agents;
   const totalStaked = agents.reduce((sum, a) => sum + a.stake_amount, 0);

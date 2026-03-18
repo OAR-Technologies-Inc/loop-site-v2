@@ -215,7 +215,7 @@ export default function SecurityPage() {
                   </div>
                 ))}
                 <div className="mt-4 p-3 bg-accent/10 border border-accent/30 rounded">
-                  <span className="text-accent text-sm font-mono">We do not assume Loop's servers are trustworthy.</span>
+                  <span className="text-accent text-sm font-mono">We do not assume Loop&apos;s servers are trustworthy.</span>
                 </div>
               </div>
             </BentoCard>

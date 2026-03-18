@@ -130,9 +130,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function CaptureLayers() {
-  // Calculate totals
-  const totalLow = layers.reduce((sum, l) => sum + l.lowEstimate, 0);
-  const totalHigh = layers.reduce((sum, l) => sum + l.highEstimate, 0);
+  // Note: Total estimates available if needed
+  // Low: ~$2,300/yr, High: ~$8,100/yr across all capture layers
   
   return (
     <section className="py-24 bg-black relative overflow-hidden">
@@ -232,7 +231,7 @@ export function CaptureLayers() {
               <span className="text-emerald-400 font-semibold">Inheritable.</span> Your children start where you left off.
             </p>
             <p className="text-zinc-400 mt-2">
-              This isn't UBI. This is sovereign wealth you earn by existing.
+              This isn&apos;t UBI. This is sovereign wealth you earn by existing.
             </p>
           </div>
         </motion.div>

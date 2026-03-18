@@ -172,7 +172,7 @@ export function Tokens() {
             Value Distribution
           </h3>
           <p className="text-text-secondary mb-6">
-            When value is captured, it's distributed across the ecosystem:
+            When value is captured, it&apos;s distributed across the ecosystem:
           </p>
           <div className="flex flex-wrap gap-6">
             <div className="flex items-center gap-3">
@@ -270,7 +270,7 @@ export function Tokens() {
 
           <div className="pt-6 border-t border-border-subtle text-center">
             <p className="text-sm text-text-secondary">
-              <span className="text-gold font-semibold">50% to community.</span> This isn't a VC exit. This is user-owned infrastructure.
+              <span className="text-gold font-semibold">50% to community.</span> This isn&apos;t a VC exit. This is user-owned infrastructure.
             </p>
           </div>
         </motion.div>

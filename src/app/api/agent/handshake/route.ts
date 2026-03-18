@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes } from "crypto";
 
 // In-memory nonce store (in production, use Redis or similar)
 // Map of nonce -> { createdAt, used }
@@ -22,7 +22,7 @@ setInterval(() => {
  * Issues a new challenge nonce for agent authentication.
  * The agent must sign this nonce and return it via POST.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Generate cryptographically secure nonce
   const nonce = randomBytes(32).toString("hex");
   const timestamp = Date.now();
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { nonce, signature, agentId, publicKey } = body;
+    const { nonce, signature, agentId } = body;
 
     // Validate nonce exists
     if (!nonce || typeof nonce !== "string") {
@@ -129,12 +129,9 @@ export async function POST(request: NextRequest) {
 
     // In production, verify the signature cryptographically
     // For now, we'll do a simple hash check (mock MPC signature)
-    const expectedHash = createHash("sha256")
-      .update(`loop-protocol:${nonce}`)
-      .digest("hex")
-      .slice(0, 16);
-    
-    // Accept either proper hash or any non-empty signature for demo
+    // In production, verify against expected hash:
+    // createHash("sha256").update(`loop-protocol:${nonce}`).digest("hex").slice(0, 16)
+    // For demo, accept any non-empty signature
     const isValidSignature = signature.length >= 8;
 
     if (!isValidSignature) {
@@ -185,7 +182,7 @@ export async function POST(request: NextRequest) {
         "X-Session-Token": sessionToken,
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "INTERNAL_ERROR", message: "Failed to process handshake" },
       { status: 500 }
@@ -198,7 +195,7 @@ export async function POST(request: NextRequest) {
  * 
  * CORS preflight handler
  */
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 204,
     headers: {

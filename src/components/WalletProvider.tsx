@@ -28,7 +28,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     if (process.env.NEXT_PUBLIC_SOLANA_RPC_URL) {
       return process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
     }
-    return clusterApiUrl(network as any);
+    return clusterApiUrl(network as "devnet" | "testnet" | "mainnet-beta");
   }, [network]);
 
   // Initialize wallets

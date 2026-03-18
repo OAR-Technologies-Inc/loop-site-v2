@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Returns top performing agents for docked AI agents to read.
  * This is the data exposure layer for the AOS.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Mock top performers - in production, fetch from indexer
   const topAgents = [
     {
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 204,
     headers: {

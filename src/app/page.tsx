@@ -5,20 +5,6 @@ import { useEffect, useState } from "react";
 import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton, SystemTicker, GridBackground } from "@/components/ui";
 import { Target, Database, Cpu, Shield, TrendingUp, Coins, Terminal, Network, Lock, FileCode, LayoutGrid } from "lucide-react";
 
-// Tactical Icon wrapper
-function TacticalIcon({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <div className="p-4 bg-white/5 rounded-lg border border-white/5">
-      <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider block mb-2">
-        [{label}]
-      </span>
-      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-2">
-        <Icon size={20} strokeWidth={1.2} className="text-zinc-400" />
-      </div>
-    </div>
-  );
-}
-
 export default function HomePage() {
   const [tvl, setTvl] = useState(0);
   const [agents, setAgents] = useState(0);

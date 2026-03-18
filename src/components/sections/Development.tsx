@@ -206,7 +206,7 @@ export function Development() {
               Timeline
             </h3>
             <div className="space-y-6">
-              {timeline.map((phase, index) => (
+              {timeline.map((phase) => (
                 <div
                   key={phase.phase}
                   className={`p-5 rounded-xl border ${

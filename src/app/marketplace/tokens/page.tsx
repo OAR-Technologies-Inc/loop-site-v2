@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
@@ -20,11 +20,7 @@ export default function TokensPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "graduated">("all");
 
-  useEffect(() => {
-    fetchTokens();
-  }, [filter]);
-
-  async function fetchTokens() {
+  const fetchTokens = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "20", sort: "reserve", order: "desc" });
@@ -41,7 +37,11 @@ export default function TokensPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filter]);
+
+  useEffect(() => {
+    fetchTokens();
+  }, [fetchTokens]);
 
   const GRADUATION_THRESHOLD = 25_000 * 1_000_000; // 25k OXO
 

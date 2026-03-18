@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
+// SSR-safe hydration check
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export function GridBackground() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   
   // Mouse position with spring smoothing
   const mouseX = useMotionValue(0);
@@ -13,8 +18,6 @@ export function GridBackground() {
   const smoothY = useSpring(mouseY, { stiffness: 100, damping: 30 });
 
   useEffect(() => {
-    setMounted(true);
-    
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);

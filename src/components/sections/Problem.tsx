@@ -102,7 +102,7 @@ export function Problem() {
           className="mt-20 text-center"
         >
           <p className="text-2xl md:text-3xl font-display font-medium text-text-secondary">
-            It doesn't have to be this way.
+            It doesn&apos;t have to be this way.
           </p>
         </motion.div>
       </div>

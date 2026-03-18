@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
@@ -38,7 +38,7 @@ export default function TradePage() {
   const agentId = params.agentId as string;
 
   const { connection } = useConnection();
-  const { publicKey, connected, signTransaction, connecting } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [curve, setCurve] = useState<BondingCurve | null>(null);
@@ -66,23 +66,7 @@ export default function TradePage() {
     fetchBalance();
   }, [publicKey, connection]);
 
-  useEffect(() => {
-    fetchAgent();
-    fetchBondingCurve();
-  }, [agentId]);
-
-  useEffect(() => {
-    if (curve && amount) {
-      const amountNum = parseFloat(amount);
-      if (mode === "buy") {
-        setEstimatedTokens(calculateTokensForOxo(amountNum, curve));
-      } else {
-        setEstimatedOxo(calculateOxoForTokens(amountNum, curve));
-      }
-    }
-  }, [amount, mode, curve]);
-
-  async function fetchAgent() {
+  const fetchAgent = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/agents/${agentId}`);
       if (res.ok) {
@@ -94,25 +78,19 @@ export default function TradePage() {
         const found = listData.agents?.find((a: Agent) => a.pubkey === agentId);
         setAgent(found || null);
       }
-    } catch (e) {
-      console.error("Failed to fetch agent:", e);
+    } catch (err) {
+      console.error("Failed to fetch agent:", err);
     }
     setLoading(false);
-  }
+  }, [agentId]);
 
-  async function fetchBondingCurve() {
+  const fetchBondingCurve = useCallback(async () => {
     try {
-      // Try to get real bonding curve data from SDK
-      // const sdk = new LoopSDK({ connection });
-      // const curveData = await sdk.getBondingCurvePrice(agentId);
-      // setCurve({ currentPrice: curveData, ... });
-
       const res = await fetch(`${API_URL}/api/tokens/${agentId}`);
       if (res.ok) {
         const data = await res.json();
         setCurve(data.curve);
       } else {
-        // Use mock bonding curve for demo
         setCurve({
           currentPrice: 0.15,
           marketCap: 15000,
@@ -121,7 +99,7 @@ export default function TradePage() {
           graduated: false,
         });
       }
-    } catch (e) {
+    } catch {
       setCurve({
         currentPrice: 0.15,
         marketCap: 15000,
@@ -130,7 +108,23 @@ export default function TradePage() {
         graduated: false,
       });
     }
-  }
+  }, [agentId]);
+
+  useEffect(() => {
+    fetchAgent();
+    fetchBondingCurve();
+  }, [fetchAgent, fetchBondingCurve]);
+
+  useEffect(() => {
+    if (curve && amount) {
+      const amountNum = parseFloat(amount);
+      if (mode === "buy") {
+        setEstimatedTokens(calculateTokensForOxo(amountNum, curve));
+      } else {
+        setEstimatedOxo(calculateOxoForTokens(amountNum, curve));
+      }
+    }
+  }, [amount, mode, curve]);
 
   // Bonding curve math: price = k * supply^2
   function calculateTokensForOxo(oxoAmount: number, curve: BondingCurve): number {
@@ -193,9 +187,9 @@ export default function TradePage() {
       setAmount("");
       fetchBondingCurve();
       
-    } catch (err: any) {
+    } catch (err) {
       console.error("Trade failed:", err);
-      setError(err.message || "Transaction failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
     } finally {
       setExecuting(false);
     }

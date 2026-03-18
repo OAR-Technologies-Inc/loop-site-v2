@@ -97,7 +97,7 @@ export function LiveMarketplace() {
             setIsLive(true);
           }
         }
-      } catch (e) {
+      } catch {
         // Use mock data on error
         console.log("Using mock agent data");
       } finally {

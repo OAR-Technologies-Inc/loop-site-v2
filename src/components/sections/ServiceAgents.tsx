@@ -34,7 +34,7 @@ export function ServiceAgents() {
             transition={{ duration: 0.6, delay: 0.1 }}
           >
             <p className="text-lg text-text-secondary leading-relaxed mb-6">
-              Personal Agents serve one human. Service Agents serve many. If you're 
+              Personal Agents serve one human. Service Agents serve many. If you&apos;re 
               a developer, you can create Service Agents that provide capabilities 
               to the ecosystem — data analysis, trading strategies, content generation, 
               specialized capture modules.

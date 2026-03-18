@@ -162,7 +162,7 @@ console.log("Agent:", vault.agent);`}
             {/* Cred Token */}
             <Section id="cred" title="Cred Token" icon={Coins}>
               <p className="text-text-secondary mb-4">
-                Protocol's stable unit of account, backed 1:1 by USDC.
+                Protocol&apos;s stable unit of account, backed 1:1 by USDC.
               </p>
 
               <CodeBlock language="typescript">

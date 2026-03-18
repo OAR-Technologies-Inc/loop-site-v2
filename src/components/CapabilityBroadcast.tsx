@@ -55,7 +55,7 @@ export function CapabilityBroadcast() {
     broadcast();
 
     // Also listen for requests from external agents
-    const handleRequest = (event: CustomEvent) => {
+    const handleRequest = () => {
       // If an external agent requests capabilities, re-broadcast
       broadcast();
     };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield, Link2, Unplug, Coins, Activity, ToggleLeft, ToggleRight, Wifi, WifiOff, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock } from "lucide-react";
+import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield, Link2, Unplug, Coins, Activity, Wifi, WifiOff, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 interface LogEntry {
@@ -270,6 +270,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
         clearTimeout(activationTimeout.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, hudState, dockedAgent, connected, publicKey, oxoBalance, oxoGatePassed]);
 
   // Run activation sequence
@@ -309,18 +310,8 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     const timestamp = now.toISOString().slice(11, 19);
     
     // ACTUAL CODE VALUES FROM MAINNET DEPLOYMENT
-    const ACTUAL_APY_TIERS = {
-      "7-29": 3,    // 3% APY
-      "30-89": 5,   // 5% APY
-      "90-179": 8,  // 8% APY
-      "180-364": 12, // 12% APY
-      "365-730": 15, // 15% APY (max)
-    };
-    
-    const VEOXO_MIN_LOCK_SECONDS = 15552000; // 6 months
-    const VEOXO_MAX_LOCK_SECONDS = 126144000; // 4 years
-    const MIN_STACK_DAYS = 7;
-    const MAX_STACK_DAYS = 730;
+    // APY Tiers: 7-29d=3%, 30-89d=5%, 90-179d=8%, 180-364d=12%, 365-730d=15%
+    // veOXO Lock: 6mo-4yr, Stack Duration: 7-730 days
     
     const simulations: Record<string, string[]> = {
       "createVault": [

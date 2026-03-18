@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
@@ -20,11 +20,7 @@ export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [metric]);
-
-  async function fetchLeaderboard() {
+  const fetchLeaderboard = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/leaderboard?metric=${metric}&limit=20`);
@@ -36,7 +32,11 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [metric]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   const metricConfig: Record<Metric, { label: string; format: (v: number) => string; icon: string }> = {
     reputation: { label: "Reputation", format: (v) => `${(v / 100).toFixed(1)}%`, icon: "⭐" },
@@ -92,7 +92,6 @@ export default function LeaderboardPage() {
               key={entry.pubkey}
               entry={entry}
               rank={index + 1}
-              metric={metric}
               format={metricConfig[metric].format}
             />
           ))}
@@ -105,12 +104,10 @@ export default function LeaderboardPage() {
 function LeaderboardRow({
   entry,
   rank,
-  metric,
   format,
 }: {
   entry: LeaderboardEntry;
   rank: number;
-  metric: Metric;
   format: (v: number) => string;
 }) {
   const isTop3 = rank <= 3;

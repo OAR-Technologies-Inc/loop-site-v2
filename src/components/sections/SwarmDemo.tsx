@@ -167,7 +167,7 @@ export function SwarmDemo() {
             {/* Event Log */}
             <div className="bg-black/50 rounded-lg p-4 font-mono text-sm h-48 overflow-hidden">
               <AnimatePresence mode="popLayout">
-                {demoSteps.slice(0, currentStep + 1).map((step, index) => (
+                {demoSteps.slice(0, currentStep + 1).map((step) => (
                   <motion.div
                     key={step.id}
                     initial={{ opacity: 0, y: 10 }}
@@ -279,7 +279,7 @@ export function SwarmDemo() {
             {/* Code Preview */}
             <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-4">
               <p className="text-zinc-500 text-xs font-mono mb-2">
-                // From our elizaOS plugin
+                {`// From our elizaOS plugin`}
               </p>
               <pre className="text-xs text-zinc-400 font-mono overflow-x-auto">
 {`const loopPlugin: Plugin = {
