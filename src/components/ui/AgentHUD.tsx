@@ -245,31 +245,140 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   }, []);
 
   // Handle simulation mode SDK action
+  // Uses ACTUAL DEPLOYED VALUES from Solana programs
   const handleSimulationAction = useCallback((action: string) => {
     const now = new Date();
     const timestamp = now.toISOString().slice(11, 19);
+    
+    // ACTUAL CODE VALUES FROM MAINNET DEPLOYMENT
+    const ACTUAL_APY_TIERS = {
+      "7-29": 3,    // 3% APY
+      "30-89": 5,   // 5% APY
+      "90-179": 8,  // 8% APY
+      "180-364": 12, // 12% APY
+      "365-730": 15, // 15% APY (max)
+    };
+    
+    const VEOXO_MIN_LOCK_SECONDS = 15552000; // 6 months
+    const VEOXO_MAX_LOCK_SECONDS = 126144000; // 4 years
+    const MIN_STACK_DAYS = 7;
+    const MAX_STACK_DAYS = 730;
     
     const simulations: Record<string, string[]> = {
       "createVault": [
         "> SIMULATION: createVault()",
         "  Policy: dailyLimit=1000, autoStack=true",
-        "  VAULT_EXPECTED_APY: 14.2% [OXO]",
+        "  Min Stack Duration: 7 days",
+        "  Max Stack Duration: 730 days (2 years)",
+        "  APY Range: 3% - 15% (duration-based)",
+        "  Extraction Fee: 5%",
         "  Est. Gas: 0.00021 SOL",
         "  [DRY_RUN_COMPLETE]"
       ],
       "registerAgent": [
         "> SIMULATION: registerAgent()",
-        "  Bonding Curve: Linear (k=0.001)",
-        "  Initial Token Price: 0.1 OXO",
-        "  Est. Market Cap at 1000 subs: 50,000 OXO",
+        "  Min OXO Stake Required: 100 OXO",
+        "  Agent Creation Fee: 500 OXO",
+        "  Graduation Threshold: 25,000 OXO",
+        "  LP Lock Duration: 10 years (post-graduation)",
+        "  Est. Gas: 0.00035 SOL",
         "  [DRY_RUN_COMPLETE]"
       ],
       "stakeAgent": [
         "> SIMULATION: stakeAgent()",
         "  Stake Amount: 100 OXO",
+        "  Min Stake: 100 OXO (Basic Tier)",
+        "  Slashing Risk: 0.1% (failed calls) to 100% (malicious)",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      // veOXO lock simulations with validation
+      "veoxo_lock_1week": [
+        "> SIMULATION: veoxo.lock({ period: '1_WEEK' })",
+        "  ERROR: MIN_LOCK_REQUIREMENT_NOT_MET",
+        "  REASON: 6_MONTHS_MINIMUM_REQUIRED",
+        "  ACTUAL_MIN_LOCK: 15552000 seconds (6 months)",
+        "  STATUS: REJECTED",
+        "  [DRY_RUN_FAILED]"
+      ],
+      "veoxo_lock_1month": [
+        "> SIMULATION: veoxo.lock({ period: '1_MONTH' })",
+        "  ERROR: MIN_LOCK_REQUIREMENT_NOT_MET",
+        "  REASON: 6_MONTHS_MINIMUM_REQUIRED",
+        "  ACTUAL_MIN_LOCK: 15552000 seconds (6 months)",
+        "  STATUS: REJECTED",
+        "  [DRY_RUN_FAILED]"
+      ],
+      "veoxo_lock_6months": [
+        "> SIMULATION: veoxo.lock({ period: '6_MONTHS' })",
+        "  Lock Duration: 15552000 seconds (6 months)",
+        "  Multiplier: 0.25x",
+        "  Input: 1000 OXO → Output: 250 veOXO",
+        "  Linear Decay: Active",
+        "  Est. Gas: 0.00028 SOL",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "veoxo_lock_1year": [
+        "> SIMULATION: veoxo.lock({ period: '1_YEAR' })",
+        "  Lock Duration: 31536000 seconds (1 year)",
+        "  Multiplier: 0.50x",
+        "  Input: 1000 OXO → Output: 500 veOXO",
+        "  Linear Decay: Active",
+        "  Est. Gas: 0.00028 SOL",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "veoxo_lock_4years": [
+        "> SIMULATION: veoxo.lock({ period: '4_YEARS' })",
+        "  Lock Duration: 126144000 seconds (4 years)",
+        "  Multiplier: 2.00x (MAX)",
+        "  Input: 1000 OXO → Output: 2000 veOXO",
+        "  Linear Decay: Active",
+        "  Est. Gas: 0.00028 SOL",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      // Stack simulations with actual APY values
+      "stack_7days": [
+        "> SIMULATION: vault.stack({ duration: 7 })",
+        "  Lock Period: 7 days",
+        "  APY: 3% (actual deployed value)",
+        "  Input: 1000 CRED",
+        "  Projected Yield: 0.58 CRED",
+        "  Early Unstake Penalty: 20% of earned yield",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "stack_30days": [
+        "> SIMULATION: vault.stack({ duration: 30 })",
         "  Lock Period: 30 days",
-        "  PROJECTED_YIELD: 18.7% APY",
-        "  Est. Rewards: 4.67 OXO/month",
+        "  APY: 5% (actual deployed value)",
+        "  Input: 1000 CRED",
+        "  Projected Yield: 4.11 CRED",
+        "  Early Unstake Penalty: 20% of earned yield",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "stack_90days": [
+        "> SIMULATION: vault.stack({ duration: 90 })",
+        "  Lock Period: 90 days",
+        "  APY: 8% (actual deployed value)",
+        "  Input: 1000 CRED",
+        "  Projected Yield: 19.73 CRED",
+        "  Early Unstake Penalty: 20% of earned yield",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "stack_180days": [
+        "> SIMULATION: vault.stack({ duration: 180 })",
+        "  Lock Period: 180 days",
+        "  APY: 12% (actual deployed value)",
+        "  Input: 1000 CRED",
+        "  Projected Yield: 59.18 CRED",
+        "  Early Unstake Penalty: 20% of earned yield",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "stack_365days": [
+        "> SIMULATION: vault.stack({ duration: 365 })",
+        "  Lock Period: 365 days",
+        "  APY: 15% (actual deployed value - MAX)",
+        "  Input: 1000 CRED",
+        "  Projected Yield: 150.00 CRED",
+        "  Early Unstake Penalty: 20% of earned yield",
         "  [DRY_RUN_COMPLETE]"
       ],
     };
@@ -281,10 +390,12 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
 
     simLog.forEach((text, i) => {
       setTimeout(() => {
+        const isError = text.includes("ERROR") || text.includes("REJECTED") || text.includes("FAILED");
+        const isSuccess = text.includes("PROJECTED") || text.includes("APY") || text.includes("Multiplier");
         setLogs(prev => [...prev, {
           id: Date.now() + i,
           text,
-          type: text.includes("DRY_RUN") ? "simulation" : text.includes("PROJECTED") || text.includes("APY") ? "success" : "info",
+          type: isError ? "warning" : text.includes("DRY_RUN") ? "simulation" : isSuccess ? "success" : "info",
           timestamp,
         }]);
       }, i * 150);

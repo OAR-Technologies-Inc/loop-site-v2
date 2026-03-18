@@ -1,7 +1,8 @@
 # Loop Protocol — Machine-Readable SDK Interface
-# Version: 1.1.0
+# Version: 1.2.0
 # Last Updated: 2026-03-18
 # For: External AI Agents / LLMs
+# STATUS: SYNCED WITH MAINNET DEPLOYMENT
 
 ================================================================================
                               PROTOCOL SUMMARY
@@ -17,7 +18,7 @@ THREE-TOKEN MODEL:
 CORE PRIMITIVES:
 - Vaults:  User asset custody with policy-constrained agent access
 - Agents:  Autonomous services that capture value from commerce/data/attention
-- Stacking: Lock CRED to earn yield (8-16% APY)
+- Stacking: Lock CRED to earn yield (3-15% APY)
 
 FULL TOKENOMICS: /tokenomics.txt
 
@@ -39,20 +40,25 @@ FULL TOKENOMICS: /tokenomics.txt
 - 2% sell fee
 - Min agent stake: 100 OXO
 
-## veOXO (Governance)
-- Lock OXO for 1 week to 4 years
-- 4-year lock: 1 OXO = 1 veOXO
-- 1-year lock: 1 OXO = 0.25 veOXO
+## veOXO (Governance) - ACTUAL DEPLOYED VALUES
+- Lock OXO for 6 MONTHS to 4 YEARS (minimum 6 months!)
+- 6-month lock: 1 OXO = 0.25 veOXO
+- 1-year lock: 1 OXO = 0.50 veOXO
+- 2-year lock: 1 OXO = 1.00 veOXO
+- 4-year lock: 1 OXO = 2.00 veOXO
 - Benefits: Governance votes, yield boost (up to 2x), fee share
+- Linear decay toward unlock date
 
-## Stacking Yields
-| Lock Period | APY    |
-|-------------|--------|
-| No lock     | 8%     |
-| 30 days     | 10%    |
-| 90 days     | 12%    |
-| 180 days    | 14%    |
-| 365 days    | 16%    |
+## Stacking Yields - ACTUAL DEPLOYED VALUES
+| Lock Period   | APY   |
+|---------------|-------|
+| 7-29 days     | 3%    |
+| 30-89 days    | 5%    |
+| 90-179 days   | 8%    |
+| 180-364 days  | 12%   |
+| 365-730 days  | 15%   |
+
+NOTE: Min 7 days, Max 730 days (2 years)
 
 ================================================================================
                               SDK PACKAGE
@@ -162,15 +168,18 @@ loop.oxo.getBondingCurveState(): Promise<BondingCurveState>
 ## veOXO Operations
 
 ```typescript
+// lockPeriod must be >= 6 months (15552000 seconds)
 loop.veoxo.lock({ oxoAmount: number, lockPeriod: number })
 loop.veoxo.extend({ newLockEnd: number })
 loop.veoxo.getPosition(owner: PublicKey): Promise<VeOxoPosition>
+loop.veoxo.getCurrentVeOxo(owner: PublicKey): Promise<number> // Decayed balance
 loop.veoxo.withdraw(): Promise<TransactionSignature> // Only after lock
 ```
 
 ## Stacking Operations
 
 ```typescript
+// lockPeriod: 7-730 days
 loop.vault.stack({ amount: number, lockPeriod?: number })
 loop.vault.unstake({ amount: number })
 loop.vault.claimYield(): Promise<TransactionSignature>
@@ -184,6 +193,7 @@ loop.vault.getPosition(owner: PublicKey): Promise<StakingPosition>
 CRED_PROGRAM:      HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
 VAULT_PROGRAM:     J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
 SHOPPING_PROGRAM:  HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ
+OXO_PROGRAM:       9URW9Rwdf6QNusibh61ZrrvDXRJRyWURteG9bmCZkgma
 CRED_MINT:         9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
 USDC_MINT:         EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
@@ -216,16 +226,46 @@ STAKER_POOL:       zEJf7Vy7ZDjvoMTBndAvkvxRpACUzCboQg2dP8H8R6k
 | OXO Bonding Exponent         | 1.5                      |
 | OXO Max Supply               | 1,000,000,000            |
 | OXO Vesting Period           | 12-18 months             |
+| veOXO Min Lock               | 6 MONTHS                 |
 | veOXO Max Lock               | 4 years                  |
-| Min User Stack               | 100 CRED                 |
+| veOXO Multiplier Range       | 0.25x - 2.0x             |
+| Min Stack Duration           | 7 days                   |
+| Max Stack Duration           | 730 days                 |
+| Stack APY Range              | 3% - 15%                 |
 | Min Agent Stake              | 100 OXO                  |
-| Base Stacking APY            | 8%                       |
-| Max Stacking APY             | 16%                      |
 | Service Fee                  | 0.5%                     |
 | OXO Sell Fee                 | 2%                       |
-| Early Unstake Penalty        | 2%                       |
+| Early Unstake Penalty        | 20% of earned yield      |
+| Extraction Fee               | 5%                       |
 | Treasury Buyback Rate        | 50% of fees              |
 | Yield Boost Max (veOXO)      | 2.0x                     |
+
+================================================================================
+                              VALIDATION RULES
+================================================================================
+
+## veOXO Lock Validation
+```
+MIN_LOCK_SECONDS = 15552000  // 6 months
+MAX_LOCK_SECONDS = 126144000 // 4 years
+
+if (lockPeriod < MIN_LOCK_SECONDS) {
+  ERROR: "LockTooShort" // Minimum 6 months required
+}
+if (lockPeriod > MAX_LOCK_SECONDS) {
+  ERROR: "LockTooLong" // Maximum 4 years
+}
+```
+
+## Stack Duration Validation
+```
+MIN_DURATION_DAYS = 7
+MAX_DURATION_DAYS = 730
+
+if (duration < 7 || duration > 730) {
+  ERROR: "InvalidDuration"
+}
+```
 
 ================================================================================
                               INTEGRATION PATTERN
@@ -234,10 +274,10 @@ STAKER_POOL:       zEJf7Vy7ZDjvoMTBndAvkvxRpACUzCboQg2dP8H8R6k
 1. Initialize SDK with Solana connection + wallet
 2. Check OXO balance (100 OXO min for agent staking)
 3. Create vault: loop.vault.initialize(...)
-4. Stack CRED for yield: loop.vault.stack(...)
+4. Stack CRED for yield: loop.vault.stack(...)  // 7-730 days
 5. Subscribe to agents: loop.agents.subscribe(...)
 6. Convert yield to OXO: loop.oxo.buy(...)
-7. Lock OXO for governance: loop.veoxo.lock(...)
+7. Lock OXO for governance: loop.veoxo.lock(...)  // Min 6 months!
 
 ================================================================================
                               ENDPOINTS
@@ -263,6 +303,19 @@ External AI agents can connect via the AOS (Agnostic Operating System) interface
 4. Use session token for authenticated SDK calls
 
 BYOA (Bring Your Own Agent) supported: Gemini, Grok, Claude, ChatGPT, Mistral, Llama
+
+================================================================================
+                              VERSION HISTORY
+================================================================================
+
+v1.2.0 (2026-03-18) - SYNCED WITH MAINNET DEPLOYMENT
+  - Fixed veOXO min lock: 1 week → 6 MONTHS
+  - Fixed stacking APY: 8-16% → 3-15%
+  - Added validation rules section
+  - Added OXO_PROGRAM address
+
+v1.1.0 (2026-03-18) - Added tokenomics summary + veOXO operations
+v1.0.0 (2026-03-18) - Initial SDK interface specification
 
 ================================================================================
 # END llms.txt
