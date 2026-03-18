@@ -96,9 +96,67 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   const [simulationMode, setSimulationMode] = useState(false);
   const [oxoBalance, setOxoBalance] = useState<number>(0);
   const [oxoGatePassed, setOxoGatePassed] = useState(false);
+  const [pingStrength, setPingStrength] = useState<number>(100);
+  const [strategyCopied, setStrategyCopied] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const sequenceIndex = useRef(0);
   const activationTimeout = useRef<NodeJS.Timeout | null>(null);
+  
+  // Flickering ping effect - stable when docked, fluctuating when searching
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (dockedAgent) {
+        // Stable high signal when agent is docked
+        setPingStrength(95 + Math.random() * 5);
+      } else if (hudState === "scanning") {
+        // Flickering/searching when no agent
+        setPingStrength(30 + Math.random() * 50);
+      } else {
+        // Medium stability otherwise
+        setPingStrength(60 + Math.random() * 30);
+      }
+    }, 2000 + Math.random() * 2000); // 2-4 seconds
+    
+    return () => clearInterval(interval);
+  }, [dockedAgent, hudState]);
+  
+  // Copy strategy payload for agent handoff
+  const copyStrategyPayload = useCallback((action: string, params: Record<string, unknown>) => {
+    const payload = {
+      protocol: "loop-aos",
+      version: "1.2.0",
+      mode: "SIMULATION",
+      timestamp: new Date().toISOString(),
+      action,
+      params,
+      tokenomics: {
+        stackingAPY: { "7-29d": "3%", "30-89d": "5%", "90-179d": "8%", "180-364d": "12%", "365-730d": "15%" },
+        veOXOLock: { min: "6_MONTHS", max: "4_YEARS", multiplier: "0.25x-1.0x" },
+        extractionFee: "5%",
+        earlyUnstakePenalty: "20%_OF_YIELD"
+      },
+      programs: {
+        CRED: "HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG",
+        VAULT: "J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT",
+        OXO: "9URW9Rwdf6QNusibh61ZrrvDXRJRyWURteG9bmCZkgma"
+      },
+      note: "SIMULATION_ONLY - Paste to your agent for review before mainnet execution"
+    };
+    
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    setStrategyCopied(true);
+    setTimeout(() => setStrategyCopied(false), 2000);
+    
+    // Log the action
+    const now = new Date();
+    const timestamp = now.toISOString().slice(11, 19);
+    setLogs(prev => [...prev, {
+      id: Date.now(),
+      text: `> STRATEGY_EXPORTED: ${action}`,
+      type: "success",
+      timestamp,
+    }]);
+  }, []);
 
   // Mock OXO balance check (in production, fetch from chain)
   useEffect(() => {
@@ -563,7 +621,25 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            style={simulationMode ? {
+              filter: "sepia(0.15) saturate(1.3) hue-rotate(-20deg)",
+            } : undefined}
           >
+            {/* Simulation Mode Amber Overlay */}
+            <AnimatePresence>
+              {simulationMode && (
+                <motion.div
+                  className="absolute inset-0 pointer-events-none z-40"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <div className="absolute inset-0 bg-amber-500/[0.03]" />
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* Glitch Effect */}
             <AnimatePresence>
               {showGlitch && (
@@ -604,16 +680,45 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                 </div>
               </div>
               
-              {/* Signal Quality Indicator */}
-              {dockedAgent && (
-                <div className="flex items-center gap-2">
-                  {dockedAgent.signalQuality === "automated" ? (
-                    <Wifi size={12} strokeWidth={1.5} className="text-green-400" />
-                  ) : (
-                    <WifiOff size={12} strokeWidth={1.5} className="text-yellow-400" />
-                  )}
+              {/* Signal Strength Indicator with Ping */}
+              <div className="flex items-center gap-1.5">
+                {/* Signal bars */}
+                <div className="flex items-end gap-0.5 h-3">
+                  {[1, 2, 3, 4].map((bar) => {
+                    const threshold = bar * 25;
+                    const isActive = pingStrength >= threshold;
+                    return (
+                      <motion.div
+                        key={bar}
+                        className={`w-1 rounded-sm ${
+                          isActive 
+                            ? dockedAgent 
+                              ? "bg-green-400" 
+                              : hudState === "scanning" 
+                                ? "bg-yellow-400" 
+                                : "bg-accent"
+                            : "bg-zinc-700"
+                        }`}
+                        style={{ height: `${bar * 25}%` }}
+                        animate={{ 
+                          opacity: isActive ? [0.7, 1, 0.7] : 0.3,
+                        }}
+                        transition={{ 
+                          duration: dockedAgent ? 2 : 0.5, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-              )}
+                {/* Ping label */}
+                <span className={`text-[8px] font-mono ${
+                  dockedAgent ? "text-green-400" : hudState === "scanning" ? "text-yellow-400" : "text-zinc-500"
+                }`}>
+                  {dockedAgent ? "STABLE" : hudState === "scanning" ? "SCAN" : `${Math.round(pingStrength)}%`}
+                </span>
+              </div>
 
               <button
                 onClick={onClose}
@@ -787,6 +892,37 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                         </motion.button>
                       );
                     })}
+                    
+                    {/* Strategy Export Button - Only in Simulation Mode */}
+                    {simulationMode && (
+                      <motion.button
+                        onClick={() => copyStrategyPayload("STAKE_VAULT", {
+                          amount: 500,
+                          duration_days: 180,
+                          projected_apy: "12%",
+                          vault_type: "STANDARD"
+                        })}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded border border-amber-500/30 bg-amber-500/5 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all group mt-3"
+                        whileHover={{ x: 4 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                          {strategyCopied ? (
+                            <Check size={12} strokeWidth={1.5} className="text-amber-400" />
+                          ) : (
+                            <Copy size={12} strokeWidth={1.2} className="text-amber-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 text-left">
+                          <div className="text-[10px] font-mono text-amber-400">
+                            {strategyCopied ? "[COPIED_TO_CLIPBOARD]" : "[EXPORT_STRATEGY_FOR_AGENT]"}
+                          </div>
+                          <div className="text-[9px] text-amber-500/70">Copy payload for agent review</div>
+                        </div>
+                        <ChevronRight size={12} strokeWidth={1.5} className="text-amber-500/50 group-hover:text-amber-400 transition-colors" />
+                      </motion.button>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -837,6 +973,31 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                       </button>
                     ))}
                   </div>
+                  
+                  {/* Strategy Export for Docked Agent */}
+                  {simulationMode && (
+                    <button
+                      onClick={() => copyStrategyPayload("AGENT_STRATEGY", {
+                        operator: dockedAgent.operatorId,
+                        agent_id: dockedAgent.agentId,
+                        docked_at: dockedAgent.dockedAt,
+                        simulation: true,
+                        suggested_action: "REVIEW_AND_SIGN",
+                        vault_params: {
+                          amount: 500,
+                          duration_days: 180,
+                          projected_apy: "12%"
+                        }
+                      })}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 mb-3 rounded border border-amber-500/30 bg-amber-500/5 text-[10px] font-mono uppercase tracking-wider text-amber-400 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all"
+                    >
+                      {strategyCopied ? (
+                        <><Check size={12} strokeWidth={1.5} /> PAYLOAD_COPIED</>
+                      ) : (
+                        <><Copy size={12} strokeWidth={1.5} /> EXPORT_FOR_AGENT</>
+                      )}
+                    </button>
+                  )}
 
                   <button
                     onClick={handleUndock}
