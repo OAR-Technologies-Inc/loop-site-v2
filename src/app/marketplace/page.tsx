@@ -1,20 +1,24 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { C2Nav, BentoCard, BentoGrid, ShimmerButton } from "@/components/ui";
-import { Target, Database, MapPin, Eye, ArrowLeftRight, TrendingUp, Bot, Search, Terminal, ChevronRight } from "lucide-react";
+import { C2Nav, BentoCard, BentoGrid, ShimmerButton, Metric, GridBackground } from "@/components/ui";
+import { 
+  Target, Database, MapPin, Eye, ArrowLeftRight, TrendingUp, Bot, 
+  Terminal, ChevronRight, Activity, Zap, Shield, Cpu, Lock,
+  Plus, Play, BarChart3
+} from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
 
 const CAPABILITIES = [
-  { id: "0100000000000000", name: "Commerce", icon: Target },
-  { id: "0200000000000000", name: "Data", icon: Database },
-  { id: "0300000000000000", name: "Location", icon: MapPin },
-  { id: "0400000000000000", name: "Attention", icon: Eye },
-  { id: "1000000000000000", name: "Transfer", icon: ArrowLeftRight },
-  { id: "2000000000000000", name: "Stack", icon: TrendingUp },
+  { id: "0100000000000000", name: "Commerce", icon: Target, label: "COMM" },
+  { id: "0200000000000000", name: "Data", icon: Database, label: "DATA" },
+  { id: "0300000000000000", name: "Location", icon: MapPin, label: "GEO" },
+  { id: "0400000000000000", name: "Attention", icon: Eye, label: "ATTN" },
+  { id: "1000000000000000", name: "Transfer", icon: ArrowLeftRight, label: "XFER" },
+  { id: "2000000000000000", name: "Stack", icon: TrendingUp, label: "STACK" },
 ];
 
 interface Agent {
@@ -33,12 +37,8 @@ interface Agent {
 export default function MarketplacePage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"reputation" | "stake" | "calls">("reputation");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [queryComplete, setQueryComplete] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchAgents();
@@ -46,171 +46,224 @@ export default function MarketplacePage() {
 
   async function fetchAgents() {
     setLoading(true);
-    setQueryComplete(false);
     try {
       const params = new URLSearchParams({
         sort: sortBy,
-        limit: "20",
+        limit: "12",
         status: "active",
       });
-      if (selectedCapability) {
-        params.set("capability", selectedCapability);
-      }
+      if (selectedCapability) params.set("capability", selectedCapability);
       
       const res = await fetch(`${API_URL}/api/agents?${params}`);
       if (!res.ok) throw new Error("Failed to fetch");
-      
       const data = await res.json();
       setAgents(data.agents || []);
-      setError(null);
-    } catch (e: any) {
-      setError(e.message);
+    } catch {
       setAgents(getMockAgents());
     } finally {
       setLoading(false);
-      setTimeout(() => setQueryComplete(true), 300);
     }
   }
 
-  const filteredAgents = agents.filter(agent => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      agent.name?.toLowerCase().includes(q) ||
-      agent.pubkey.toLowerCase().includes(q)
-    );
-  });
-
+  const filteredAgents = agents;
   const totalStaked = agents.reduce((sum, a) => sum + a.stake_amount, 0);
   const totalCalls = agents.reduce((sum, a) => sum + a.total_service_calls, 0);
+  const avgRep = agents.length > 0 
+    ? agents.reduce((sum, a) => sum + a.reputation_score, 0) / agents.length / 1000 
+    : 0;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      <GridBackground />
       <C2Nav />
 
-      <div className="pt-24 pb-16 px-6">
+      <div className="pt-24 pb-20 px-6">
         <div className="max-w-7xl mx-auto">
-          {/* Terminal Header */}
-          <div className="mb-8 font-mono">
-            <div className="flex items-center gap-2 text-zinc-600 text-xs mb-2">
-              <Terminal size={12} strokeWidth={1.5} />
-              <span>AGENT_REGISTRY v1.0.0</span>
+          
+          {/* Header with Terminal Output */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-mono mb-1">
+              <Terminal size={10} strokeWidth={1.5} />
+              <span>AGENT_REGISTRY::MAINNET</span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-500">&gt;</span>
-              <span className="text-zinc-400">QUERYING_AGENT_REGISTRY...</span>
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-zinc-600">&gt;</span>
+              <span className="text-zinc-500">query --status=active --sort={sortBy}</span>
               {loading ? (
                 <motion.span
                   className="text-accent"
                   animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 0.8, repeat: Infinity }}
+                  transition={{ duration: 0.6, repeat: Infinity }}
                 >
-                  [LOADING]
+                  [SCANNING]
                 </motion.span>
               ) : (
-                <span className="text-accent">[DONE]</span>
+                <span className="text-accent">[{agents.length} FOUND]</span>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-2 text-[10px] text-zinc-600">
-              <span>AGENTS_FOUND: <span className="text-zinc-400">{agents.length}</span></span>
-              <span>TOTAL_STAKED: <span className="text-zinc-400">{(totalStaked / 1_000_000).toFixed(1)}M</span></span>
-              <span>CALLS_24H: <span className="text-zinc-400">{totalCalls.toLocaleString()}</span></span>
-            </div>
           </div>
 
-          {/* Search + Filters Bar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="SEARCH_AGENTS..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent border border-zinc-800 rounded px-3 py-2 pl-9 text-xs font-mono text-zinc-300 placeholder:text-zinc-600 focus:border-white/30 focus:shadow-[0_0_10px_rgba(255,255,255,0.1)] focus:outline-none transition-all"
-              />
+          {/* Live Telemetry Strip */}
+          <BentoCard className="col-span-full mb-6 p-0 overflow-hidden" spotlight={false}>
+            <div className="flex items-stretch divide-x divide-white/5">
+              <div className="flex-1 p-4">
+                <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[AGENTS_ONLINE]</span>
+                <span className="text-lg font-mono font-bold text-accent">{agents.length}</span>
+              </div>
+              <div className="flex-1 p-4">
+                <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[TOTAL_STAKED]</span>
+                <span className="text-lg font-mono font-bold">${(totalStaked / 1_000_000).toFixed(1)}M</span>
+              </div>
+              <div className="flex-1 p-4">
+                <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[CALLS_24H]</span>
+                <span className="text-lg font-mono font-bold">{totalCalls.toLocaleString()}</span>
+              </div>
+              <div className="flex-1 p-4">
+                <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[AVG_REP]</span>
+                <span className="text-lg font-mono font-bold">{avgRep.toFixed(1)}%</span>
+              </div>
             </div>
+          </BentoCard>
 
-            {/* Capability Filter */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setSelectedCapability(null)}
-                className={`px-2 py-1 text-[10px] font-mono uppercase tracking-wider rounded transition-all ${
-                  !selectedCapability
-                    ? "bg-accent text-zinc-950"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                ALL
-              </button>
-              {CAPABILITIES.map((cap) => {
-                const Icon = cap.icon;
-                return (
-                  <button
-                    key={cap.id}
-                    onClick={() => setSelectedCapability(cap.id)}
-                    className={`px-2 py-1 text-[10px] font-mono uppercase tracking-wider rounded transition-all flex items-center gap-1.5 ${
-                      selectedCapability === cap.id
-                        ? "bg-accent text-zinc-950"
-                        : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    <Icon size={10} strokeWidth={1.5} />
-                    {cap.name}
+          {/* SDK Action Buttons */}
+          <BentoGrid className="mb-6">
+            <BentoCard className="col-span-3 p-4" spotlight={false}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[SYS_INIT]</span>
+                  <span className="text-xs font-mono text-zinc-400">createVault()</span>
+                </div>
+                <Link href="/launch">
+                  <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center hover:border-accent/50 hover:bg-accent/10 transition-all">
+                    <Plus size={14} strokeWidth={1.2} className="text-zinc-400" />
                   </button>
-                );
-              })}
-            </div>
+                </Link>
+              </div>
+            </BentoCard>
 
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="bg-transparent border border-zinc-800 rounded px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 focus:border-white/30 focus:outline-none"
+            <BentoCard className="col-span-3 p-4" spotlight={false}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[DEPLOY]</span>
+                  <span className="text-xs font-mono text-zinc-400">registerAgent()</span>
+                </div>
+                <Link href="/launch">
+                  <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center hover:border-accent/50 hover:bg-accent/10 transition-all">
+                    <Bot size={14} strokeWidth={1.2} className="text-zinc-400" />
+                  </button>
+                </Link>
+              </div>
+            </BentoCard>
+
+            <BentoCard className="col-span-3 p-4" spotlight={false}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[QUERY]</span>
+                  <span className="text-xs font-mono text-zinc-400">getVaultStats()</span>
+                </div>
+                <Link href="/marketplace/stats">
+                  <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center hover:border-accent/50 hover:bg-accent/10 transition-all">
+                    <BarChart3 size={14} strokeWidth={1.2} className="text-zinc-400" />
+                  </button>
+                </Link>
+              </div>
+            </BentoCard>
+
+            <BentoCard className="col-span-3 p-4" spotlight={false}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[SUBSCRIBE]</span>
+                  <span className="text-xs font-mono text-zinc-400">stakeAgent()</span>
+                </div>
+                <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center hover:border-accent/50 hover:bg-accent/10 transition-all">
+                  <Play size={14} strokeWidth={1.2} className="text-zinc-400" />
+                </button>
+              </div>
+            </BentoCard>
+          </BentoGrid>
+
+          {/* Capability Filter Strip */}
+          <div className="flex items-center gap-1 mb-6 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setSelectedCapability(null)}
+              className={`px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider rounded transition-all whitespace-nowrap ${
+                !selectedCapability
+                  ? "bg-accent text-zinc-950"
+                  : "text-zinc-600 hover:text-zinc-300 border border-zinc-800"
+              }`}
             >
-              <option value="reputation">SORT:REP</option>
-              <option value="stake">SORT:STAKE</option>
-              <option value="calls">SORT:CALLS</option>
-            </select>
+              ALL
+            </button>
+            {CAPABILITIES.map((cap) => {
+              const Icon = cap.icon;
+              return (
+                <button
+                  key={cap.id}
+                  onClick={() => setSelectedCapability(cap.id)}
+                  className={`px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider rounded transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    selectedCapability === cap.id
+                      ? "bg-accent text-zinc-950"
+                      : "text-zinc-600 hover:text-zinc-300 border border-zinc-800"
+                  }`}
+                >
+                  <Icon size={10} strokeWidth={1.5} />
+                  {cap.label}
+                </button>
+              );
+            })}
+            <div className="ml-auto flex items-center gap-1">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="bg-transparent border border-zinc-800 rounded px-2 py-1.5 text-[9px] font-mono uppercase tracking-wider text-zinc-500 focus:border-accent/50 focus:outline-none cursor-pointer"
+              >
+                <option value="reputation">REP↓</option>
+                <option value="stake">STAKE↓</option>
+                <option value="calls">CALLS↓</option>
+              </select>
+            </div>
           </div>
 
-          {/* Agent Grid */}
+          {/* Agent Grid — High Density Bento */}
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-40 bg-zinc-900/30 rounded border border-zinc-800/50 animate-pulse" />
+            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="h-32 bg-zinc-900/30 rounded border border-zinc-800/50 animate-pulse" />
               ))}
             </div>
           ) : filteredAgents.length === 0 ? (
             <div className="text-center py-16 font-mono">
               <Bot size={32} strokeWidth={1} className="mx-auto mb-4 text-zinc-700" />
-              <div className="text-zinc-500 text-sm">NO_AGENTS_MATCH_QUERY</div>
+              <div className="text-zinc-600 text-xs uppercase tracking-wider">NO_AGENTS_MATCH</div>
               <Link href="/launch" className="inline-block mt-4">
                 <ShimmerButton size="sm">DEPLOY_AGENT</ShimmerButton>
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
               {filteredAgents.map((agent) => (
-                <AgentCard key={agent.pubkey} agent={agent} />
+                <AgentTile key={agent.pubkey} agent={agent} />
               ))}
             </div>
           )}
 
-          {/* Deploy CTA */}
-          <div className="mt-12 pt-8 border-t border-zinc-800/50">
+          {/* Footer CTA */}
+          <div className="mt-8 pt-6 border-t border-zinc-800/50">
             <div className="flex items-center justify-between">
               <div className="font-mono">
-                <div className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">REGISTRY_STATUS</div>
-                <div className="text-sm text-zinc-400">
-                  {agents.length} agents indexed • Registry open for deployments
+                <span className="text-[8px] text-zinc-600 uppercase tracking-wider">[REGISTRY_STATUS]</span>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {agents.length} indexed • Open for deployments
                 </div>
               </div>
-              <Link href="/launch">
-                <ShimmerButton>DEPLOY_AGENT</ShimmerButton>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href="/marketplace/leaderboard">
+                  <ShimmerButton variant="ghost" size="sm">LEADERBOARD</ShimmerButton>
+                </Link>
+                <Link href="/launch">
+                  <ShimmerButton size="sm">DEPLOY_AGENT</ShimmerButton>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -219,89 +272,69 @@ export default function MarketplacePage() {
   );
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentTile({ agent }: { agent: Agent }) {
   const capabilities = agent.capabilities
     .map(c => CAPABILITIES.find(cap => cap.id === c.capability_id))
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, 2);
 
   const PrimaryIcon = capabilities[0]?.icon || Bot;
 
   return (
     <Link href={`/marketplace/agent/${agent.pubkey}`}>
       <motion.div
-        className="group relative bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded p-4 h-full transition-all hover:border-accent/30 hover:shadow-[0_0_30px_rgba(0,255,204,0.05)]"
-        whileHover={{ scale: 1.01 }}
+        className="group relative bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded p-3 h-full transition-all hover:border-accent/30 hover:shadow-[0_0_20px_rgba(0,255,204,0.05)]"
+        whileHover={{ scale: 1.02, y: -2 }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
-        {/* Status indicator */}
-        <div className="absolute top-3 right-3">
-          <motion.div
-            className={`w-1.5 h-1.5 rounded-full ${agent.status === "active" ? "bg-accent" : "bg-zinc-600"}`}
-            animate={agent.status === "active" ? { opacity: [0.5, 1, 0.5] } : {}}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-        </div>
+        {/* Status Dot */}
+        <motion.div
+          className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${agent.status === "active" ? "bg-accent" : "bg-zinc-700"}`}
+          animate={agent.status === "active" ? { opacity: [0.4, 1, 0.4] } : {}}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
 
         {/* Icon + Name */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="w-8 h-8 rounded bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center flex-shrink-0">
-            <PrimaryIcon size={14} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-6 rounded bg-zinc-800/50 border border-zinc-700/50 flex items-center justify-center flex-shrink-0">
+            <PrimaryIcon size={12} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
           </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium truncate group-hover:text-accent transition-colors">
-              {agent.name || `AGENT_${agent.pubkey.slice(0, 6)}`}
-            </div>
-            <div className="text-[10px] font-mono text-zinc-600 truncate">
-              {agent.pubkey.slice(0, 4)}...{agent.pubkey.slice(-4)}
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-medium truncate group-hover:text-accent transition-colors">
+              {agent.name || `AGENT_${agent.pubkey.slice(0, 4)}`}
             </div>
           </div>
         </div>
 
-        {/* Metadata Grid */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        {/* Compact Stats */}
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] font-mono">
           <div>
-            <div className="text-[8px] font-mono text-zinc-600 uppercase">REP</div>
-            <div className="text-xs font-mono text-accent">{agent.reputation_percent}</div>
+            <span className="text-zinc-600">REP</span>
+            <span className="text-accent ml-1">{agent.reputation_percent}</span>
           </div>
           <div>
-            <div className="text-[8px] font-mono text-zinc-600 uppercase">STAKE</div>
-            <div className="text-xs font-mono text-zinc-400">{(agent.stake_amount / 1_000_000).toFixed(1)}M</div>
-          </div>
-          <div>
-            <div className="text-[8px] font-mono text-zinc-600 uppercase">CALLS</div>
-            <div className="text-xs font-mono text-zinc-400">{agent.total_service_calls}</div>
-          </div>
-          <div>
-            <div className="text-[8px] font-mono text-zinc-600 uppercase">STATUS</div>
-            <div className={`text-xs font-mono ${agent.status === "active" ? "text-accent" : "text-zinc-600"}`}>
-              {agent.status.toUpperCase()}
-            </div>
+            <span className="text-zinc-600">STK</span>
+            <span className="text-zinc-400 ml-1">{(agent.stake_amount / 1_000_000).toFixed(0)}M</span>
           </div>
         </div>
 
-        {/* Capabilities */}
-        <div className="flex items-center justify-between pt-3 border-t border-zinc-800/50">
-          <div className="flex items-center gap-1.5">
-            {capabilities.map((cap, i) => {
-              if (!cap) return null;
-              const Icon = cap.icon;
-              return (
-                <div key={i} className="w-5 h-5 rounded bg-zinc-800/30 flex items-center justify-center">
-                  <Icon size={10} strokeWidth={1.2} className="text-zinc-600" />
-                </div>
-              );
-            })}
-            {agent.capabilities.length > 3 && (
-              <span className="text-[10px] font-mono text-zinc-600">+{agent.capabilities.length - 3}</span>
-            )}
-          </div>
-          <ChevronRight size={12} strokeWidth={1.5} className="text-zinc-600 group-hover:text-accent transition-colors" />
+        {/* Capability Icons */}
+        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-zinc-800/30">
+          {capabilities.map((cap, i) => {
+            if (!cap) return null;
+            const Icon = cap.icon;
+            return (
+              <div key={i} className="w-4 h-4 rounded bg-zinc-800/30 flex items-center justify-center">
+                <Icon size={8} strokeWidth={1.2} className="text-zinc-600" />
+              </div>
+            );
+          })}
+          <ChevronRight size={10} strokeWidth={1.5} className="ml-auto text-zinc-700 group-hover:text-accent transition-colors" />
         </div>
 
-        {/* Runtime tag */}
-        <div className="absolute bottom-3 left-3 text-[8px] font-mono text-zinc-700 uppercase">
-          RUNTIME:NITRO_TEE
+        {/* Runtime Label */}
+        <div className="absolute bottom-2 left-2 text-[6px] font-mono text-zinc-700 uppercase">
+          NITRO
         </div>
       </motion.div>
     </Link>
@@ -401,7 +434,7 @@ function getMockAgents(): Agent[] {
     },
     {
       pubkey: "Ga2PRtFu3TRsTjN1QxdVpvtjVP7kb1rAkZse9MXWXjPh",
-      name: "CommerceNode_Alpha",
+      name: "CommerceNode_A",
       creator: "8mK3...",
       reputation_score: 92800,
       reputation_percent: "92.8%",
@@ -427,6 +460,63 @@ function getMockAgents(): Agent[] {
         { capability_id: "0100000000000000", capability_name: "Commerce" },
         { capability_id: "0200000000000000", capability_name: "Data" },
         { capability_id: "0300000000000000", capability_name: "Location" },
+      ],
+    },
+    {
+      pubkey: "4xK9vMt7pBnQ8eF1nW3hZ6yR5sL2dU9cP0kJ7gH8fTmN",
+      name: "DataSync_Alpha",
+      creator: "5tY2...",
+      reputation_score: 90500,
+      reputation_percent: "90.5%",
+      stake_amount: 380000000,
+      total_service_calls: 1847,
+      total_earnings: 72000000,
+      status: "active",
+      capabilities: [
+        { capability_id: "0200000000000000", capability_name: "Data" },
+      ],
+    },
+    {
+      pubkey: "7bP2qN4rK5wX1mJ8hL6yT0sC3dF9gU2vB4nM7pQ8eR1z",
+      name: "StackBot_v1",
+      creator: "2wE4...",
+      reputation_score: 89800,
+      reputation_percent: "89.8%",
+      stake_amount: 290000000,
+      total_service_calls: 1523,
+      total_earnings: 54000000,
+      status: "active",
+      capabilities: [
+        { capability_id: "2000000000000000", capability_name: "Stack" },
+      ],
+    },
+    {
+      pubkey: "2mN8fG5kL3wP9hJ7yB1tR4sQ6vX0cE2nU8dM5kF7gH3j",
+      name: "GeoNode_Beta",
+      creator: "9pL1...",
+      reputation_score: 88200,
+      reputation_percent: "88.2%",
+      stake_amount: 210000000,
+      total_service_calls: 987,
+      total_earnings: 38000000,
+      status: "active",
+      capabilities: [
+        { capability_id: "0300000000000000", capability_name: "Location" },
+      ],
+    },
+    {
+      pubkey: "9kL4mF2pN7wQ1hJ5yC8tR3sB6vX0dE9nU4kM2gH8fP1z",
+      name: "AttnCapture_v2",
+      creator: "3qW6...",
+      reputation_score: 87500,
+      reputation_percent: "87.5%",
+      stake_amount: 175000000,
+      total_service_calls: 743,
+      total_earnings: 29000000,
+      status: "active",
+      capabilities: [
+        { capability_id: "0400000000000000", capability_name: "Attention" },
+        { capability_id: "0200000000000000", capability_name: "Data" },
       ],
     },
   ];

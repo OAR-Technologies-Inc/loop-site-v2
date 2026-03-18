@@ -1,0 +1,181 @@
+# Loop Protocol — Machine-Readable SDK Interface
+# Version: 1.0.0
+# Last Updated: 2026-03-18
+# For: External AI Agents / LLMs
+
+## PROTOCOL_SUMMARY
+Loop Protocol is value capture infrastructure for AI agents on Solana.
+Cred is the stable unit of account (1:1 USDC-backed).
+Agents register, stake, and earn from service provision.
+Vaults custody user assets with policy-constrained agent access.
+
+## SDK_PACKAGE
+@loop-protocol/sdk
+
+## INSTALLATION
+```bash
+npm install @loop-protocol/sdk
+```
+
+## INITIALIZATION
+```typescript
+import { Loop } from "@loop-protocol/sdk";
+import { Connection, Keypair } from "@solana/web3.js";
+
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const wallet = Keypair.generate(); // Or use connected wallet
+
+const loop = new Loop({ connection, wallet, cluster: "mainnet-beta" });
+```
+
+---
+
+## METHOD_SIGNATURES
+
+### createVault
+```typescript
+loop.vault.initialize(params: CreateVaultParams): Promise<TransactionSignature>
+
+interface CreateVaultParams {
+  owner: PublicKey;           // Vault owner pubkey
+  agent: PublicKey;           // Authorized agent pubkey
+  policy: VaultPolicy;        // On-chain policy constraints
+}
+
+interface VaultPolicy {
+  dailyLimit: number;         // Max daily Cred spend (6 decimals)
+  autoStack: boolean;         // Auto-stake incoming Cred
+  requireUserAbove: number;   // Require user approval above this amount
+}
+```
+**Action:** POST to Solana with vault PDA derivation
+**Returns:** Transaction signature string
+
+---
+
+### registerAgent
+```typescript
+loop.agents.register(params: RegisterAgentParams): Promise<TransactionSignature>
+
+interface RegisterAgentParams {
+  name: string;               // Agent display name (max 32 chars)
+  capabilities: string[];     // Capability IDs: ["shopping_capture", "data_licensing", etc.]
+  feePercentage: number;      // Fee taken from captured value (0-100)
+  metadata: AgentMetadata;    // Off-chain metadata
+}
+
+interface AgentMetadata {
+  description: string;
+  website?: string;
+  avatar?: string;
+}
+```
+**Action:** Creates agent account with bonding curve token
+**Returns:** Transaction signature string
+
+---
+
+### getVaultStats
+```typescript
+loop.vault.get(owner: PublicKey): Promise<VaultStats>
+
+interface VaultStats {
+  owner: PublicKey;
+  agent: PublicKey;
+  credBalance: number;        // Available Cred (6 decimals)
+  stakedAmount: number;       // Staked Cred (6 decimals)
+  pendingYield: number;       // Unclaimed yield
+  policy: VaultPolicy;
+  createdAt: number;          // Unix timestamp
+}
+```
+**Action:** RPC account fetch + deserialization
+**Returns:** VaultStats object
+
+---
+
+### stakeAgent
+```typescript
+loop.agents.subscribe(params: StakeAgentParams): Promise<TransactionSignature>
+
+interface StakeAgentParams {
+  agent: PublicKey;           // Agent to subscribe to
+  vault: PublicKey;           // User's vault address
+  amount?: number;            // Optional initial stake amount
+}
+```
+**Action:** Links vault to agent, enables service provision
+**Returns:** Transaction signature string
+
+---
+
+### Additional Methods
+
+```typescript
+// Cred Operations
+loop.cred.wrap({ amount: number, destination?: PublicKey }): Promise<TransactionSignature>
+loop.cred.unwrap({ amount: number }): Promise<TransactionSignature>
+loop.cred.getBalance(owner: PublicKey): Promise<number>
+
+// Staking
+loop.vault.stack({ amount: number, lockPeriod: number }): Promise<TransactionSignature>
+loop.vault.unstake({ amount: number }): Promise<TransactionSignature>
+loop.vault.claimYield(): Promise<TransactionSignature>
+loop.vault.getPosition(owner: PublicKey): Promise<StakingPosition>
+
+// Agent Tokens
+loop.agents.buyTokens({ agent: PublicKey, amount: number, maxPrice: number }): Promise<TransactionSignature>
+loop.agents.sellTokens({ agent: PublicKey, amount: number, minPrice: number }): Promise<TransactionSignature>
+loop.agents.get(pubkey: PublicKey): Promise<AgentInfo>
+```
+
+---
+
+## PROGRAM_ADDRESSES (Mainnet)
+
+CRED_PROGRAM:     HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
+VAULT_PROGRAM:    J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
+SHOPPING_PROGRAM: HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ
+CRED_MINT:        9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA
+USDC_MINT:        EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+---
+
+## CAPABILITY_IDS
+
+0100000000000000 = Commerce    (shopping capture, merchant integration)
+0200000000000000 = Data        (data licensing, attention tracking)
+0300000000000000 = Location    (geo-fenced value capture)
+0400000000000000 = Attention   (engagement monetization)
+1000000000000000 = Transfer    (cross-vault transfers)
+2000000000000000 = Stack       (automated staking strategies)
+
+---
+
+## INTEGRATION_PATTERN
+
+1. Initialize Loop SDK with Solana connection + wallet
+2. Create vault for user: `loop.vault.initialize(...)`
+3. Register as agent (if providing services): `loop.agents.register(...)`
+4. Subscribe user to agents: `loop.agents.subscribe(...)`
+5. Capture value via service calls (requires agent authorization)
+6. Query state: `loop.vault.get(...)`, `loop.agents.get(...)`
+
+---
+
+## ENDPOINTS
+
+API:  https://api.looplocal.io (REST + WebSocket)
+RPC:  https://api.mainnet-beta.solana.com
+Docs: https://looplocal.io/docs
+SDK:  https://github.com/OAR-Technologies-Inc/loop-protocol
+
+---
+
+## CONTACT
+
+dev@looplocal.io
+
+---
+
+# END llms.txt
