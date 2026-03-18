@@ -108,7 +108,14 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   const [aguiConnectionState, setAguiConnectionState] = useState<ConnectionState>("disconnected");
   const [hudTint, setHudTint] = useState<"none" | "amber" | "red" | "green">("none");
   
+  // Pairing Code State
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingBrowserSession, setPairingBrowserSession] = useState<string | null>(null);
+  const [pairingStatus, setPairingStatus] = useState<"idle" | "generating" | "waiting" | "paired" | "expired">("idle");
+  const [pairingExpiry, setPairingExpiry] = useState<number | null>(null);
+  
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const pairingPollRef = useRef<NodeJS.Timeout | null>(null);
   const sequenceIndex = useRef(0);
   const activationTimeout = useRef<NodeJS.Timeout | null>(null);
   const aguiClientRef = useRef<AGUIClient | null>(null);
@@ -197,9 +204,9 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   // Flickering ping effect
   useEffect(() => {
     const interval = setInterval(() => {
-      if (dockedAgent || aguiConnectionState === "connected") {
+      if (dockedAgent || aguiConnectionState === "connected" || pairingStatus === "paired") {
         setPingStrength(95 + Math.random() * 5);
-      } else if (hudState === "scanning" || aguiConnectionState === "connecting") {
+      } else if (hudState === "scanning" || aguiConnectionState === "connecting" || pairingStatus === "waiting") {
         setPingStrength(30 + Math.random() * 50);
       } else {
         setPingStrength(60 + Math.random() * 30);
@@ -207,7 +214,134 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     }, 2000 + Math.random() * 2000);
     
     return () => clearInterval(interval);
-  }, [dockedAgent, hudState, aguiConnectionState]);
+  }, [dockedAgent, hudState, aguiConnectionState, pairingStatus]);
+  
+  // Generate pairing code
+  const generatePairingCode = useCallback(async () => {
+    setPairingStatus("generating");
+    setDockError(null);
+    
+    const timestamp = new Date().toISOString().slice(11, 19);
+    setLogs(prev => [...prev, {
+      id: Date.now(),
+      text: "> GENERATING_PAIRING_CODE...",
+      type: "command",
+      timestamp,
+    }]);
+    
+    try {
+      const res = await fetch("/api/v1/ghost/pair/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nonce }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setPairingCode(data.code);
+        setPairingBrowserSession(data.browserSessionId);
+        setPairingExpiry(data.expiresAt);
+        setPairingStatus("waiting");
+        
+        setLogs(prev => [...prev,
+          { id: Date.now(), text: `  Code Generated: ${data.code}`, type: "success", timestamp },
+          { id: Date.now() + 1, text: `  Expires in: ${data.expiresIn}s`, type: "info", timestamp },
+          { id: Date.now() + 2, text: "> WAITING_FOR_AGENT_CONNECTION...", type: "warning", timestamp },
+        ]);
+        
+        // Start polling for agent connection
+        startPairingPoll(data.browserSessionId);
+      } else {
+        setPairingStatus("idle");
+        setDockError(data.error || "Failed to generate code");
+      }
+    } catch (err) {
+      setPairingStatus("idle");
+      setDockError(err instanceof Error ? err.message : "Network error");
+    }
+  }, [nonce]);
+  
+  // Poll for agent connection
+  const startPairingPoll = useCallback((browserSessionId: string) => {
+    // Clear any existing poll
+    if (pairingPollRef.current) {
+      clearInterval(pairingPollRef.current);
+    }
+    
+    pairingPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/ghost/pair/status?browserSessionId=${browserSessionId}`);
+        const data = await res.json();
+        
+        if (data.status === "paired" && data.agent) {
+          // Agent connected!
+          clearInterval(pairingPollRef.current!);
+          pairingPollRef.current = null;
+          
+          const timestamp = new Date().toISOString().slice(11, 19);
+          
+          setShowGlitch(true);
+          setTimeout(() => setShowGlitch(false), 500);
+          
+          setLogs(prev => [...prev,
+            { id: Date.now(), text: "> AGENT_CONNECTED!", type: "command", timestamp },
+            { id: Date.now() + 1, text: `  OPERATOR: ${data.agent.operator}`, type: "info", timestamp },
+            { id: Date.now() + 2, text: `  Agent: ${data.agent.id}`, type: "info", timestamp },
+            { id: Date.now() + 3, text: `  Model: ${data.agent.model || "unknown"}`, type: "info", timestamp },
+            { id: Date.now() + 4, text: "> [DOCK_SUCCESS]: AGENT_PAIRED_VIA_CODE", type: "dock", timestamp },
+          ]);
+          
+          // Save docked agent
+          const docked: DockedAgent = {
+            agentId: data.agent.id,
+            operatorId: data.agent.operator.toLowerCase(),
+            operatorName: data.agent.operator,
+            operatorColor: data.agent.operatorColor,
+            operatorIcon: data.agent.operatorIcon,
+            dockedAt: data.agent.pairedAt,
+            nonce: nonce,
+            signalQuality: "automated",
+            sessionId: data.agent.sessionId,
+          };
+          
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(docked));
+          setDockedAgent(docked);
+          setHudState("docked");
+          setPairingStatus("paired");
+          setPairingCode(null);
+          
+          if (activationTimeout.current) {
+            clearTimeout(activationTimeout.current);
+          }
+        } else if (data.status === "expired") {
+          clearInterval(pairingPollRef.current!);
+          pairingPollRef.current = null;
+          setPairingStatus("expired");
+          setPairingCode(null);
+          
+          const timestamp = new Date().toISOString().slice(11, 19);
+          setLogs(prev => [...prev, {
+            id: Date.now(),
+            text: "> PAIRING_CODE_EXPIRED",
+            type: "warning",
+            timestamp,
+          }]);
+        }
+      } catch {
+        // Continue polling on error
+      }
+    }, 2000); // Poll every 2 seconds
+  }, [nonce]);
+  
+  // Clean up pairing poll on unmount
+  useEffect(() => {
+    return () => {
+      if (pairingPollRef.current) {
+        clearInterval(pairingPollRef.current);
+      }
+    };
+  }, []);
   
   // Send command to remote agent
   const sendCommand = useCallback(async () => {
@@ -1024,65 +1158,110 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                   className="border-t border-white/5"
                 >
                   <div className="px-4 py-3">
-                    <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-3">[DOCK_AGENT]</div>
+                    <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-3">[CONNECT_AGENT]</div>
                     
-                    {/* Automated Dock Button */}
-                    <button
-                      onClick={handleAGUIDock}
-                      className="w-full flex items-center gap-3 p-3 rounded border border-accent/30 bg-accent/5 hover:bg-accent/10 transition-all group mb-3"
-                    >
-                      <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center">
-                        <Wifi size={14} strokeWidth={1.5} className="text-accent" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-[10px] font-mono text-accent">AUTO_DOCK (AG-UI)</div>
-                        <div className="text-[8px] font-mono text-zinc-500">Connect via WebSocket/SSE</div>
-                      </div>
-                      <ArrowRight size={12} className="text-accent" />
-                    </button>
-                    
-                    {/* Divider */}
-                    <div className="flex items-center gap-2 my-3">
-                      <div className="flex-1 h-px bg-white/5" />
-                      <span className="text-[8px] font-mono text-zinc-600">OR MANUAL PASTE</span>
-                      <div className="flex-1 h-px bg-white/5" />
-                    </div>
-                    
-                    {/* Handshake Copy */}
-                    <button
-                      onClick={copyHandshakeId}
-                      className="w-full flex items-center gap-3 p-2 rounded border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group mb-2"
-                    >
-                      <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center">
-                        {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className="text-zinc-500" />}
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="text-[9px] font-mono text-zinc-400">
-                          {copied ? "COPIED!" : "Copy AG-UI Handshake JSON"}
+                    {/* Pairing Code Display */}
+                    {pairingCode && pairingStatus === "waiting" ? (
+                      <div className="mb-4">
+                        <div className="text-center p-4 rounded-lg border border-accent/30 bg-accent/5">
+                          <div className="text-[8px] font-mono text-zinc-500 mb-2">PAIRING CODE</div>
+                          <div className="text-3xl font-mono font-bold text-accent tracking-[0.3em] mb-2">
+                            {pairingCode}
+                          </div>
+                          <div className="text-[9px] font-mono text-zinc-500">
+                            Tell your AI: &quot;Connect to Loop with code {pairingCode}&quot;
+                          </div>
+                          {pairingExpiry && (
+                            <div className="text-[8px] font-mono text-zinc-600 mt-2">
+                              Expires in {Math.max(0, Math.floor((pairingExpiry - Date.now()) / 1000))}s
+                            </div>
+                          )}
                         </div>
+                        <div className="flex items-center justify-center gap-2 mt-3">
+                          <motion.div
+                            className="w-2 h-2 rounded-full bg-accent"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          />
+                          <span className="text-[9px] font-mono text-zinc-500">Waiting for agent...</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setPairingCode(null);
+                            setPairingStatus("idle");
+                            if (pairingPollRef.current) {
+                              clearInterval(pairingPollRef.current);
+                            }
+                          }}
+                          className="w-full mt-3 py-2 rounded border border-zinc-700 hover:border-zinc-600 text-[9px] font-mono text-zinc-500 hover:text-zinc-400 transition-colors"
+                        >
+                          Cancel
+                        </button>
                       </div>
-                    </button>
-                    
-                    {/* Manual Paste */}
-                    <textarea
-                      value={agentResponse}
-                      onChange={(e) => setAgentResponse(e.target.value)}
-                      placeholder='Paste agent response JSON here...'
-                      className="w-full h-16 bg-zinc-900/50 border border-white/10 rounded p-2 text-[10px] font-mono text-zinc-300 placeholder:text-zinc-600 resize-none outline-none focus:border-accent/50 transition-colors"
-                    />
-                    
-                    {dockError && (
-                      <p className="text-[9px] font-mono text-red-400 mt-1">{dockError}</p>
+                    ) : (
+                      <>
+                        {/* Generate Pairing Code Button */}
+                        <button
+                          onClick={generatePairingCode}
+                          disabled={pairingStatus === "generating"}
+                          className="w-full flex items-center gap-3 p-3 rounded border border-accent/30 bg-accent/5 hover:bg-accent/10 disabled:opacity-50 transition-all group mb-3"
+                        >
+                          <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center">
+                            <Link2 size={14} strokeWidth={1.5} className="text-accent" />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className="text-[10px] font-mono text-accent">
+                              {pairingStatus === "generating" ? "GENERATING..." : "GENERATE PAIRING CODE"}
+                            </div>
+                            <div className="text-[8px] font-mono text-zinc-500">Get a code to share with your AI</div>
+                          </div>
+                          <ArrowRight size={12} className="text-accent" />
+                        </button>
+                        
+                        {/* Divider */}
+                        <div className="flex items-center gap-2 my-3">
+                          <div className="flex-1 h-px bg-white/5" />
+                          <span className="text-[8px] font-mono text-zinc-600">OR MANUAL PASTE</span>
+                          <div className="flex-1 h-px bg-white/5" />
+                        </div>
+                        
+                        {/* Handshake Copy */}
+                        <button
+                          onClick={copyHandshakeId}
+                          className="w-full flex items-center gap-3 p-2 rounded border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group mb-2"
+                        >
+                          <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center">
+                            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className="text-zinc-500" />}
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className="text-[9px] font-mono text-zinc-400">
+                              {copied ? "COPIED!" : "Copy AG-UI Handshake JSON"}
+                            </div>
+                          </div>
+                        </button>
+                        
+                        {/* Manual Paste */}
+                        <textarea
+                          value={agentResponse}
+                          onChange={(e) => setAgentResponse(e.target.value)}
+                          placeholder='Paste agent response JSON here...'
+                          className="w-full h-16 bg-zinc-900/50 border border-white/10 rounded p-2 text-[10px] font-mono text-zinc-300 placeholder:text-zinc-600 resize-none outline-none focus:border-accent/50 transition-colors"
+                        />
+                        
+                        {dockError && (
+                          <p className="text-[9px] font-mono text-red-400 mt-1">{dockError}</p>
+                        )}
+                        
+                        <button
+                          onClick={handleConfirmDock}
+                          disabled={!agentResponse.trim()}
+                          className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded border border-accent/50 bg-accent/10 hover:bg-accent/20 disabled:opacity-50 disabled:hover:bg-accent/10 transition-colors"
+                        >
+                          <Link2 size={12} className="text-accent" />
+                          <span className="text-[10px] font-mono text-accent">CONFIRM_DOCK</span>
+                        </button>
+                      </>
                     )}
-                    
-                    <button
-                      onClick={handleConfirmDock}
-                      disabled={!agentResponse.trim()}
-                      className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded border border-accent/50 bg-accent/10 hover:bg-accent/20 disabled:opacity-50 disabled:hover:bg-accent/10 transition-colors"
-                    >
-                      <Link2 size={12} className="text-accent" />
-                      <span className="text-[10px] font-mono text-accent">CONFIRM_DOCK</span>
-                    </button>
                   </div>
                 </motion.div>
               )}
