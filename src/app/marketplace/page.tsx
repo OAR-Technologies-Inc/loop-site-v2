@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { C2Nav, BentoCard, BentoGrid, ShimmerButton, GridBackground } from "@/components/ui";
+import { ImmersiveNav, BentoCard, BentoGrid, ShimmerButton, GridBackground } from "@/components/ui";
 import { 
   Target, Database, MapPin, Eye, ArrowLeftRight, TrendingUp, Bot, 
   Terminal, ChevronRight, Activity, Plus, Play, BarChart3, Coins
@@ -97,10 +97,11 @@ export default function MarketplacePage() {
   return (
     <div className="min-h-screen relative">
       <GridBackground />
-      <C2Nav />
+      <ImmersiveNav />
 
-      <div className="pt-24 pb-20 px-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Full-screen immersive layout - minimal padding */}
+      <div className="pt-20 pb-8 px-4 sm:px-6">
+        <div className="max-w-[1600px] mx-auto">
           
           {/* Header */}
           <div className="mb-6">

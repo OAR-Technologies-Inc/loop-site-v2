@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield, Link2, Unplug, Coins, Activity, ToggleLeft, ToggleRight, Wifi, WifiOff } from "lucide-react";
+import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield, Link2, Unplug, Coins, Activity, ToggleLeft, ToggleRight, Wifi, WifiOff, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 interface LogEntry {
@@ -817,6 +817,50 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                 </button>
               </div>
             )}
+
+            {/* OS Navigation - System Menu */}
+            <div className="px-3 py-2 border-b border-white/5 bg-zinc-900/20">
+              <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-2">[OS_NAV]</div>
+              <div className="flex items-center gap-1">
+                {[
+                  { href: "/marketplace", label: "DISCOVER", icon: Compass },
+                  { href: "/marketplace?sort=reputation", label: "RANKINGS", icon: Trophy },
+                  { href: "/marketplace?view=tokens", label: "TOKENS", icon: CircleDollarSign },
+                  { href: "/marketplace?view=stats", label: "METRICS", icon: BarChart3 },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      className="flex-1 flex flex-col items-center gap-1 px-2 py-1.5 rounded border border-transparent hover:border-accent/30 hover:bg-accent/5 transition-all group"
+                    >
+                      <Icon size={12} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
+                      <span className="text-[7px] font-mono text-zinc-600 group-hover:text-accent transition-colors">{item.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-1 mt-2 pt-2 border-t border-white/5">
+                {[
+                  { href: "/docs", label: "SDK", icon: FileCode },
+                  { href: "/security", label: "SECURITY", icon: Lock },
+                  { href: "/launch", label: "DEPLOY", icon: Zap },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded border border-white/5 bg-white/[0.02] hover:border-accent/30 hover:bg-accent/5 transition-all group"
+                    >
+                      <Icon size={10} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
+                      <span className="text-[8px] font-mono text-zinc-500 group-hover:text-accent transition-colors">{item.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* System Log */}
             <div className="flex-1 overflow-hidden flex flex-col">
