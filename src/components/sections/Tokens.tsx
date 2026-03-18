@@ -195,6 +195,85 @@ export function Tokens() {
             </div>
           </div>
         </motion.div>
+
+        {/* OXO Token Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="mt-8 p-8 rounded-2xl bg-bg-surface border border-gold/30"
+        >
+          <h3 className="font-display text-xl font-semibold mb-6">
+            OXO Token Distribution
+          </h3>
+          <p className="text-text-secondary mb-8">
+            1 billion OXO, fixed supply. No inflation. No surprise mints.
+          </p>
+          
+          {/* Distribution bars */}
+          <div className="space-y-4 mb-8">
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Community & Public</span>
+                <span className="text-gold font-bold">50% — 500M OXO</span>
+              </div>
+              <div className="h-3 bg-bg-base rounded-full overflow-hidden">
+                <div className="h-full bg-gold rounded-full" style={{ width: '50%' }} />
+              </div>
+              <p className="text-xs text-text-muted mt-1">Airdrops, capture bonuses, staking rewards, referrals</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Treasury</span>
+                <span className="text-forest-light font-bold">25% — 250M OXO</span>
+              </div>
+              <div className="h-3 bg-bg-base rounded-full overflow-hidden">
+                <div className="h-full bg-forest-light rounded-full" style={{ width: '25%' }} />
+              </div>
+              <p className="text-xs text-text-muted mt-1">DAO-governed, max 10% annual emission for grants & development</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Team & Early Contributors</span>
+                <span className="text-text-secondary font-bold">15% — 150M OXO</span>
+              </div>
+              <div className="h-3 bg-bg-base rounded-full overflow-hidden">
+                <div className="h-full bg-text-muted rounded-full" style={{ width: '15%' }} />
+              </div>
+              <p className="text-xs text-text-muted mt-1">2-year vest, 6-month cliff</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Liquidity</span>
+                <span className="text-forest font-bold">5% — 50M OXO</span>
+              </div>
+              <div className="h-3 bg-bg-base rounded-full overflow-hidden">
+                <div className="h-full bg-forest rounded-full" style={{ width: '5%' }} />
+              </div>
+              <p className="text-xs text-text-muted mt-1">DEX liquidity pools at launch</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-medium">Ecosystem Partners</span>
+                <span className="text-forest font-bold">5% — 50M OXO</span>
+              </div>
+              <div className="h-3 bg-bg-base rounded-full overflow-hidden">
+                <div className="h-full bg-forest/70 rounded-full" style={{ width: '5%' }} />
+              </div>
+              <p className="text-xs text-text-muted mt-1">Integrations, agent frameworks, merchants — 1-year vest</p>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-border-subtle text-center">
+            <p className="text-sm text-text-secondary">
+              <span className="text-gold font-semibold">50% to community.</span> This isn't a VC exit. This is user-owned infrastructure.
+            </p>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

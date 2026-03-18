@@ -24,6 +24,13 @@ export const metadata: Metadata = {
   title: "Loop Protocol — The Economic Layer for the Agentic Era",
   description:
     "Your agents capture value. Your vault grows it. You own everything. Loop is the wealth infrastructure for humans in the age of AI.",
+  manifest: "/manifest.json",
+  themeColor: "#1B4D3E",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Loop",
+  },
   openGraph: {
     title: "Loop Protocol — The Economic Layer for the Agentic Era",
     description: "Your agents capture value. Your vault grows it. You own everything.",

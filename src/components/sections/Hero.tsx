@@ -26,12 +26,21 @@ export function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="font-display text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-8"
+          className="font-display text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6"
         >
-          The Economic Layer
+          The Plaid of
           <br />
-          <span className="gradient-text">for the Agentic Era</span>
+          <span className="gradient-text">the Agentic Era</span>
         </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="text-lg md:text-xl text-forest-light font-medium mb-4"
+        >
+          Wealth-building, not point-burning.
+        </motion.p>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
@@ -39,9 +48,8 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-xl md:text-2xl text-text-secondary leading-relaxed mb-10 max-w-3xl mx-auto"
         >
-          Infrastructure for AI agents to capture, transfer, compound, and 
-          inherit value on behalf of humans. Any agent can implement it. 
-          Any human can benefit from it.
+          Your agents capture value. Your vault compounds it. Your heirs inherit it.
+          Works with any AI framework. Settles on Solana.
         </motion.p>
 
         <motion.div
@@ -50,11 +58,11 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-4 justify-center"
         >
-          <Button variant="primary" size="lg" href="https://app.looplocal.io">
-            Open App
+          <Button variant="primary" size="lg" href="https://github.com/southerncory/loop-protocol">
+            Start Building
           </Button>
-          <Button variant="secondary" size="lg" href="https://github.com/southerncory/loop-protocol">
-            Read Whitepaper
+          <Button variant="secondary" size="lg" href="/marketplace">
+            Explore Marketplace
           </Button>
         </motion.div>
       </div>

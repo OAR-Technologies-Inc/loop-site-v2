@@ -6,9 +6,11 @@ import { Button } from "./ui/Button";
 
 const navLinks = [
   { label: "Protocol", href: "#protocol" },
+  { label: "Marketplace", href: "/marketplace" },
   { label: "Tokenomics", href: "#tokenomics" },
   { label: "Roadmap", href: "#roadmap" },
-  { label: "Docs", href: "https://docs.looplocal.io", external: true },
+  { label: "SDK", href: "https://github.com/southerncory/loop-protocol/tree/main/sdk", external: true },
+  { label: "Docs", href: "https://loop-whitepaper.vercel.app", external: true },
 ];
 
 export function Navigation() {
