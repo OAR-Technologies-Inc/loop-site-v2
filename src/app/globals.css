@@ -702,3 +702,123 @@ body {
   border-radius: 4px;
   box-shadow: 0 0 15px rgba(0, 255, 204, 0.1);
 }
+
+/* ========================================
+   TACTICAL WALLET BUTTON
+   ======================================== */
+
+.wallet-btn-wrapper {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Shimmer border animation */
+.wallet-btn-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 25%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.3) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: wallet-shimmer 3s linear infinite;
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.wallet-btn-wrapper.wallet-connected::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 255, 204, 0.4) 25%,
+    rgba(0, 255, 204, 0.7) 50%,
+    rgba(0, 255, 204, 0.4) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+}
+
+@keyframes wallet-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.wallet-tactical-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 6px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  padding: 8px 16px !important;
+  height: auto !important;
+  transition: all 0.2s ease !important;
+}
+
+.wallet-tactical-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1) !important;
+}
+
+.wallet-connected .wallet-tactical-btn {
+  background: rgba(0, 255, 204, 0.1) !important;
+  border-color: rgba(0, 255, 204, 0.4) !important;
+  color: var(--accent) !important;
+}
+
+/* ========================================
+   GLOBAL SCANLINE OVERLAY
+   ======================================== */
+
+.scanlines {
+  position: relative;
+}
+
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Global scanlines that cover entire viewport */
+.scanlines-global::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.02) 2px,
+    rgba(0, 0, 0, 0.02) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}

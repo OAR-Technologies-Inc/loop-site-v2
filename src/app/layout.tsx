@@ -50,7 +50,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen dark-aura antialiased">
+      <body className="min-h-screen dark-aura antialiased scanlines-global">
         <WalletProvider>
           {children}
         </WalletProvider>
