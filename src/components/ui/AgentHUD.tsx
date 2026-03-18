@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield, Link2, Unplug, Coins, Activity, Wifi, WifiOff, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock } from "lucide-react";
+import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, MessageSquare, Search, Shield, Link2, Unplug, Activity, Wifi, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock, Send, ArrowRight } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { AGUIClient, ConnectionState, type HUDCommand, type LogEntry as AGUILogEntry, detectOperator as detectAGUIOperator } from "@/lib/ag-ui";
 
 interface LogEntry {
   id: number;
   text: string;
-  type: "info" | "success" | "warning" | "command" | "active" | "dock" | "simulation";
+  type: "info" | "success" | "warning" | "command" | "active" | "dock" | "simulation" | "error" | "input";
   timestamp: string;
 }
 
@@ -20,35 +21,40 @@ interface AgentHUDProps {
 interface DockedAgent {
   agentId: string;
   operatorId: string;
+  operatorName: string;
+  operatorColor: string;
+  operatorIcon: string;
   dockedAt: number;
   nonce: string;
   signalQuality: "automated" | "manual";
+  sessionId?: string;
 }
 
-type HUDState = "initializing" | "scanning" | "active" | "docked";
+type HUDState = "initializing" | "scanning" | "connecting" | "active" | "docked";
 
 const STORAGE_KEY = "loop_docked_agent";
 const OXO_GATE_THRESHOLD = 100;
 
 const INIT_SEQUENCE: Omit<LogEntry, "id" | "timestamp">[] = [
-  { text: "> INITIALIZING_AOS_HANDSHAKE...", type: "command" },
+  { text: "> INITIALIZING_AG_UI_TERMINAL...", type: "command" },
+  { text: "  AG-UI Protocol v1.0.0", type: "info" },
   { text: "  Connecting to Loop Protocol Mainnet", type: "info" },
   { text: "  Network latency: 24ms", type: "info" },
-  { text: "> READING_LLMS_TXT...", type: "command" },
-  { text: "  Fetching /llms.txt manifest", type: "info" },
-  { text: "  Protocol version: 1.0.0", type: "info" },
-  { text: "  Parsing SDK interface specifications", type: "info" },
+  { text: "> LOADING_CAPABILITIES...", type: "command" },
+  { text: "  TEXT_MESSAGE: enabled", type: "success" },
+  { text: "  TOOL_CALL: enabled", type: "success" },
+  { text: "  STATE_SYNC: enabled", type: "success" },
+  { text: "  CUSTOM_EVENTS: enabled", type: "success" },
   { text: "> SDK_FUNCTIONS_LOADED:", type: "command" },
   { text: "  [createVault] → Vault.initialize()", type: "success" },
   { text: "  [registerAgent] → Agents.register()", type: "success" },
-  { text: "  [getVaultStats] → Vault.get()", type: "success" },
-  { text: "  [stakeAgent] → Agents.subscribe()", type: "success" },
+  { text: "  [stakeOXO] → OXO.stake()", type: "success" },
   { text: "> OXO_GATE_CHECK...", type: "command" },
 ];
 
 const ACTIVATION_SEQUENCE: Omit<LogEntry, "id" | "timestamp">[] = [
   { text: "> EXTERNAL_AGENT_TIMEOUT", type: "info" },
-  { text: "  No external agent detected", type: "info" },
+  { text: "  No remote agent connected", type: "info" },
   { text: "> ACTIVATING_LOOP_GENESIS_REP...", type: "command" },
   { text: "  Loading system intelligence", type: "info" },
   { text: "  Capabilities: Protocol Guide, Market Scan, Security Audit", type: "success" },
@@ -61,26 +67,24 @@ const SUGGESTED_ACTIONS = [
   { id: "03", label: "Check Vault Security", icon: Shield, description: "Audit your vault policy" },
 ];
 
-// Known operator identities
-const OPERATOR_IDENTITIES: Record<string, { name: string; color: string }> = {
-  "gemini": { name: "Gemini", color: "#4285F4" },
-  "grok": { name: "Grok", color: "#1DA1F2" },
-  "claude": { name: "Claude", color: "#CC785C" },
-  "chatgpt": { name: "ChatGPT", color: "#10A37F" },
-  "openai": { name: "OpenAI", color: "#10A37F" },
-  "anthropic": { name: "Claude", color: "#CC785C" },
-  "mistral": { name: "Mistral", color: "#FF7000" },
-  "llama": { name: "Llama", color: "#0668E1" },
-};
+function generateNonce(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
-function detectOperator(agentId: string): { operatorId: string; name: string; color: string } {
-  const lower = agentId.toLowerCase();
-  for (const [key, value] of Object.entries(OPERATOR_IDENTITIES)) {
-    if (lower.includes(key)) {
-      return { operatorId: key, ...value };
-    }
+function getLogColor(type: LogEntry["type"]): string {
+  switch (type) {
+    case "command": return "text-accent";
+    case "success": return "text-emerald-400";
+    case "warning": return "text-amber-400";
+    case "active": return "text-accent font-semibold";
+    case "dock": return "text-sky-400 font-semibold";
+    case "simulation": return "text-amber-500";
+    case "error": return "text-red-400";
+    case "input": return "text-violet-400";
+    default: return "text-zinc-400";
   }
-  return { operatorId: "unknown", name: "Remote Agent", color: "#00ffcc" };
 }
 
 export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
@@ -98,34 +102,157 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   const [oxoGatePassed, setOxoGatePassed] = useState(false);
   const [pingStrength, setPingStrength] = useState<number>(100);
   const [strategyCopied, setStrategyCopied] = useState(false);
+  
+  // AG-UI Terminal State
+  const [commandInput, setCommandInput] = useState("");
+  const [aguiConnectionState, setAguiConnectionState] = useState<ConnectionState>("disconnected");
+  const [hudTint, setHudTint] = useState<"none" | "amber" | "red" | "green">("none");
+  
   const logContainerRef = useRef<HTMLDivElement>(null);
   const sequenceIndex = useRef(0);
   const activationTimeout = useRef<NodeJS.Timeout | null>(null);
+  const aguiClientRef = useRef<AGUIClient | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
-  // Flickering ping effect - stable when docked, fluctuating when searching
+  // Initialize AG-UI Client
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    aguiClientRef.current = new AGUIClient({
+      onStateChange: (state) => {
+        setAguiConnectionState(state);
+      },
+      onLog: (entry) => {
+        const timestamp = entry.timestamp || new Date().toISOString().slice(11, 19);
+        setLogs(prev => [...prev, {
+          id: Date.now() + Math.random(),
+          text: entry.text,
+          type: entry.type as LogEntry["type"],
+          timestamp,
+        }]);
+      },
+      onCommand: (command: HUDCommand) => {
+        handleHUDCommand(command);
+      },
+      onOperatorIdentified: (operator) => {
+        setDockedAgent(prev => prev ? {
+          ...prev,
+          operatorName: operator.name,
+          operatorColor: operator.color,
+          operatorIcon: operator.icon,
+        } : null);
+      },
+    });
+    
+    return () => {
+      aguiClientRef.current?.disconnect();
+    };
+  }, []);
+  
+  // Handle HUD commands from remote agent
+  const handleHUDCommand = useCallback((command: HUDCommand) => {
+    switch (command.cmd) {
+      case "SET_TINT":
+        setHudTint(command.tint);
+        if (command.tint === "amber") {
+          setSimulationMode(true);
+        }
+        break;
+      case "SET_MODE":
+        if (command.mode === "simulation") {
+          setSimulationMode(true);
+          setHudTint("amber");
+        } else if (command.mode === "normal") {
+          setSimulationMode(false);
+          setHudTint("none");
+        }
+        break;
+      case "CLEAR_LOG":
+        setLogs([]);
+        break;
+      case "APPEND_LOG":
+        const timestamp = new Date().toISOString().slice(11, 19);
+        command.entries.forEach((entry: AGUILogEntry, i: number) => {
+          setLogs(prev => [...prev, {
+            id: Date.now() + i,
+            text: entry.text,
+            type: entry.type as LogEntry["type"],
+            timestamp: entry.timestamp || timestamp,
+          }]);
+        });
+        break;
+      case "DISPLAY_TOAST":
+        // Could integrate with a toast library
+        const toastTimestamp = new Date().toISOString().slice(11, 19);
+        setLogs(prev => [...prev, {
+          id: Date.now(),
+          text: `[TOAST] ${command.message}`,
+          type: command.variant === "error" ? "error" : command.variant === "warning" ? "warning" : "info",
+          timestamp: toastTimestamp,
+        }]);
+        break;
+    }
+  }, []);
+  
+  // Flickering ping effect
   useEffect(() => {
     const interval = setInterval(() => {
-      if (dockedAgent) {
-        // Stable high signal when agent is docked
+      if (dockedAgent || aguiConnectionState === "connected") {
         setPingStrength(95 + Math.random() * 5);
-      } else if (hudState === "scanning") {
-        // Flickering/searching when no agent
+      } else if (hudState === "scanning" || aguiConnectionState === "connecting") {
         setPingStrength(30 + Math.random() * 50);
       } else {
-        // Medium stability otherwise
         setPingStrength(60 + Math.random() * 30);
       }
-    }, 2000 + Math.random() * 2000); // 2-4 seconds
+    }, 2000 + Math.random() * 2000);
     
     return () => clearInterval(interval);
-  }, [dockedAgent, hudState]);
+  }, [dockedAgent, hudState, aguiConnectionState]);
+  
+  // Send command to remote agent
+  const sendCommand = useCallback(async () => {
+    if (!commandInput.trim()) return;
+    
+    const timestamp = new Date().toISOString().slice(11, 19);
+    
+    // Log the input
+    setLogs(prev => [...prev, {
+      id: Date.now(),
+      text: `> ${commandInput}`,
+      type: "input",
+      timestamp,
+    }]);
+    
+    // Send to AG-UI client if connected
+    if (aguiClientRef.current && aguiConnectionState === "connected") {
+      await aguiClientRef.current.sendInput(commandInput);
+    } else {
+      // Local echo for demo mode
+      setLogs(prev => [...prev, {
+        id: Date.now() + 1,
+        text: "  [LOCAL_MODE] No remote agent connected",
+        type: "warning",
+        timestamp,
+      }]);
+    }
+    
+    setCommandInput("");
+  }, [commandInput, aguiConnectionState]);
+  
+  // Handle Enter key in command input
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendCommand();
+    }
+  }, [sendCommand]);
   
   // Copy strategy payload for agent handoff
   const copyStrategyPayload = useCallback((action: string, params: Record<string, unknown>) => {
     const payload = {
-      protocol: "loop-aos",
-      version: "1.2.0",
-      mode: "SIMULATION",
+      protocol: "loop-ag-ui",
+      version: "1.0.0",
+      mode: simulationMode ? "SIMULATION" : "LIVE",
       timestamp: new Date().toISOString(),
       action,
       params,
@@ -140,14 +267,13 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
         VAULT: "J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT",
         OXO: "9URW9Rwdf6QNusibh61ZrrvDXRJRyWURteG9bmCZkgma"
       },
-      note: "SIMULATION_ONLY - Paste to your agent for review before mainnet execution"
+      note: simulationMode ? "SIMULATION_ONLY - Review before mainnet execution" : "LIVE_MODE"
     };
     
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setStrategyCopied(true);
     setTimeout(() => setStrategyCopied(false), 2000);
     
-    // Log the action
     const now = new Date();
     const timestamp = now.toISOString().slice(11, 19);
     setLogs(prev => [...prev, {
@@ -156,12 +282,11 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
       type: "success",
       timestamp,
     }]);
-  }, []);
+  }, [simulationMode]);
 
-  // Mock OXO balance check (in production, fetch from chain)
+  // Mock OXO balance check
   useEffect(() => {
     if (connected && publicKey) {
-      // Simulate OXO balance check
       const mockBalance = Math.floor(Math.random() * 500) + 50;
       setOxoBalance(mockBalance);
       setOxoGatePassed(mockBalance >= OXO_GATE_THRESHOLD);
@@ -171,7 +296,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     }
   }, [connected, publicKey]);
 
-  // Load docked agent from localStorage on mount
+  // Load docked agent from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -224,7 +349,6 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                        entry.type === "success" ? 200 : 150;
           setTimeout(runSequence, delay);
         } else {
-          // Add OXO gate result
           const now = new Date();
           const timestamp = now.toISOString().slice(11, 19);
           
@@ -233,20 +357,20 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
               { id: Date.now(), text: `  Wallet: ${publicKey?.toString().slice(0, 8)}...`, type: "info", timestamp },
               { id: Date.now() + 1, text: `  OXO_BALANCE: ${oxoBalance}`, type: oxoGatePassed ? "success" : "warning", timestamp },
               { id: Date.now() + 2, text: oxoGatePassed ? "  SESSION_UNLOCKED ✓" : `  GATE_FAILED: Requires >${OXO_GATE_THRESHOLD} OXO`, type: oxoGatePassed ? "success" : "warning", timestamp },
-              { id: Date.now() + 3, text: "> STATUS: SCANNING_FOR_AGENT...", type: "warning", timestamp },
+              { id: Date.now() + 3, text: "> STATUS: AWAITING_REMOTE_DOCK...", type: "warning", timestamp },
             ]);
           } else {
             setLogs(prev => [...prev,
               { id: Date.now(), text: "  No wallet connected", type: "warning", timestamp },
               { id: Date.now() + 1, text: "  OXO_GATE: BYPASSED (Demo Mode)", type: "info", timestamp },
-              { id: Date.now() + 2, text: "> STATUS: SCANNING_FOR_AGENT...", type: "warning", timestamp },
+              { id: Date.now() + 2, text: "> STATUS: AWAITING_REMOTE_DOCK...", type: "warning", timestamp },
             ]);
           }
           
           setHudState("scanning");
           activationTimeout.current = setTimeout(() => {
             runActivationSequence();
-          }, 2000);
+          }, 5000);
         }
       };
       
@@ -254,14 +378,13 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     } else if (isOpen && dockedAgent) {
       const now = new Date();
       const timestamp = now.toISOString().slice(11, 19);
-      const operator = detectOperator(dockedAgent.agentId);
       setLogs([
         { id: 1, text: "> RESTORING_SESSION...", type: "command", timestamp },
-        { id: 2, text: `  Operator: ${operator.name}`, type: "info", timestamp },
-        { id: 3, text: `  Agent ID: ${dockedAgent.agentId}`, type: "info", timestamp },
+        { id: 2, text: `  OPERATOR: ${dockedAgent.operatorName || "REMOTE"}`, type: "info", timestamp },
+        { id: 3, text: `  Agent: ${dockedAgent.agentId}`, type: "info", timestamp },
         { id: 4, text: `  Signal: ${dockedAgent.signalQuality === "automated" ? "HIGH_SPEED" : "MANUAL_LINK"}`, type: "info", timestamp },
         { id: 5, text: `  Docked: ${new Date(dockedAgent.dockedAt).toLocaleTimeString()}`, type: "info", timestamp },
-        { id: 6, text: "> STATUS: DOCKED_VIA_REMOTE_LINK", type: "dock", timestamp },
+        { id: 6, text: "> [DOCK_SUCCESS]: SESSION_RESTORED", type: "dock", timestamp },
       ]);
     }
     
@@ -303,131 +426,31 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     runNext();
   }, []);
 
-  // Handle simulation mode SDK action
-  // Uses ACTUAL DEPLOYED VALUES from Solana programs
+  // Handle simulation mode actions
   const handleSimulationAction = useCallback((action: string) => {
     const now = new Date();
     const timestamp = now.toISOString().slice(11, 19);
-    
-    // ACTUAL CODE VALUES FROM MAINNET DEPLOYMENT
-    // APY Tiers: 7-29d=3%, 30-89d=5%, 90-179d=8%, 180-364d=12%, 365-730d=15%
-    // veOXO Lock: 6mo-4yr, Stack Duration: 7-730 days
     
     const simulations: Record<string, string[]> = {
       "createVault": [
         "> SIMULATION: createVault()",
         "  Policy: dailyLimit=1000, autoStack=true",
-        "  Min Stack Duration: 7 days",
-        "  Max Stack Duration: 730 days (2 years)",
         "  APY Range: 3% - 15% (duration-based)",
-        "  Extraction Fee: 5%",
         "  Est. Gas: 0.00021 SOL",
+        "  [DRY_RUN_COMPLETE]"
+      ],
+      "stakeOXO": [
+        "> SIMULATION: stakeOXO({ amount: 100, duration: 180 })",
+        "  Lock Period: 180 days",
+        "  veOXO Multiplier: 0.5x",
+        "  veOXO Received: 50",
         "  [DRY_RUN_COMPLETE]"
       ],
       "registerAgent": [
         "> SIMULATION: registerAgent()",
-        "  Min OXO Stake Required: 100 OXO",
-        "  Agent Creation Fee: 500 OXO",
-        "  Graduation Threshold: 25,000 OXO",
-        "  LP Lock Duration: 10 years (post-graduation)",
-        "  Est. Gas: 0.00035 SOL",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "stakeAgent": [
-        "> SIMULATION: stakeAgent()",
-        "  Stake Amount: 100 OXO",
-        "  Min Stake: 100 OXO (Basic Tier)",
-        "  Slashing Risk: 0.1% (failed calls) to 100% (malicious)",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      // veOXO lock simulations with validation
-      "veoxo_lock_1week": [
-        "> SIMULATION: veoxo.lock({ period: '1_WEEK' })",
-        "  ERROR: MIN_LOCK_REQUIREMENT_NOT_MET",
-        "  REASON: 6_MONTHS_MINIMUM_REQUIRED",
-        "  ACTUAL_MIN_LOCK: 15552000 seconds (6 months)",
-        "  STATUS: REJECTED",
-        "  [DRY_RUN_FAILED]"
-      ],
-      "veoxo_lock_1month": [
-        "> SIMULATION: veoxo.lock({ period: '1_MONTH' })",
-        "  ERROR: MIN_LOCK_REQUIREMENT_NOT_MET",
-        "  REASON: 6_MONTHS_MINIMUM_REQUIRED",
-        "  ACTUAL_MIN_LOCK: 15552000 seconds (6 months)",
-        "  STATUS: REJECTED",
-        "  [DRY_RUN_FAILED]"
-      ],
-      "veoxo_lock_6months": [
-        "> SIMULATION: veoxo.lock({ period: '6_MONTHS' })",
-        "  Lock Duration: 15552000 seconds (6 months)",
-        "  Multiplier: 0.25x",
-        "  Input: 1000 OXO → Output: 250 veOXO",
-        "  Linear Decay: Active",
-        "  Est. Gas: 0.00028 SOL",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "veoxo_lock_1year": [
-        "> SIMULATION: veoxo.lock({ period: '1_YEAR' })",
-        "  Lock Duration: 31536000 seconds (1 year)",
-        "  Multiplier: 0.50x",
-        "  Input: 1000 OXO → Output: 500 veOXO",
-        "  Linear Decay: Active",
-        "  Est. Gas: 0.00028 SOL",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "veoxo_lock_4years": [
-        "> SIMULATION: veoxo.lock({ period: '4_YEARS' })",
-        "  Lock Duration: 126144000 seconds (4 years)",
-        "  Multiplier: 2.00x (MAX)",
-        "  Input: 1000 OXO → Output: 2000 veOXO",
-        "  Linear Decay: Active",
-        "  Est. Gas: 0.00028 SOL",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      // Stack simulations with actual APY values
-      "stack_7days": [
-        "> SIMULATION: vault.stack({ duration: 7 })",
-        "  Lock Period: 7 days",
-        "  APY: 3% (actual deployed value)",
-        "  Input: 1000 CRED",
-        "  Projected Yield: 0.58 CRED",
-        "  Early Unstake Penalty: 20% of earned yield",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "stack_30days": [
-        "> SIMULATION: vault.stack({ duration: 30 })",
-        "  Lock Period: 30 days",
-        "  APY: 5% (actual deployed value)",
-        "  Input: 1000 CRED",
-        "  Projected Yield: 4.11 CRED",
-        "  Early Unstake Penalty: 20% of earned yield",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "stack_90days": [
-        "> SIMULATION: vault.stack({ duration: 90 })",
-        "  Lock Period: 90 days",
-        "  APY: 8% (actual deployed value)",
-        "  Input: 1000 CRED",
-        "  Projected Yield: 19.73 CRED",
-        "  Early Unstake Penalty: 20% of earned yield",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "stack_180days": [
-        "> SIMULATION: vault.stack({ duration: 180 })",
-        "  Lock Period: 180 days",
-        "  APY: 12% (actual deployed value)",
-        "  Input: 1000 CRED",
-        "  Projected Yield: 59.18 CRED",
-        "  Early Unstake Penalty: 20% of earned yield",
-        "  [DRY_RUN_COMPLETE]"
-      ],
-      "stack_365days": [
-        "> SIMULATION: vault.stack({ duration: 365 })",
-        "  Lock Period: 365 days",
-        "  APY: 15% (actual deployed value - MAX)",
-        "  Input: 1000 CRED",
-        "  Projected Yield: 150.00 CRED",
-        "  Early Unstake Penalty: 20% of earned yield",
+        "  Capabilities: [COMMERCE, DATA]",
+        "  Initial Stake: 100 OXO",
+        "  Reputation: 0 (Genesis)",
         "  [DRY_RUN_COMPLETE]"
       ],
     };
@@ -439,16 +462,93 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
 
     simLog.forEach((text, i) => {
       setTimeout(() => {
-        const isError = text.includes("ERROR") || text.includes("REJECTED") || text.includes("FAILED");
-        const isSuccess = text.includes("PROJECTED") || text.includes("APY") || text.includes("Multiplier");
         setLogs(prev => [...prev, {
           id: Date.now() + i,
           text,
-          type: isError ? "warning" : text.includes("DRY_RUN") ? "simulation" : isSuccess ? "success" : "info",
+          type: text.includes("DRY_RUN") ? "simulation" : "info",
           timestamp,
         }]);
       }, i * 150);
     });
+  }, []);
+
+  // Handle AG-UI dock via API
+  const handleAGUIDock = useCallback(async () => {
+    if (!aguiClientRef.current) return;
+    
+    setHudState("connecting");
+    setDockError(null);
+    
+    try {
+      const now = new Date();
+      const timestamp = now.toISOString().slice(11, 19);
+      
+      setLogs(prev => [...prev, {
+        id: Date.now(),
+        text: "> INITIATING_AG_UI_HANDSHAKE...",
+        type: "command",
+        timestamp,
+      }]);
+      
+      // Get nonce from server
+      const serverNonce = await aguiClientRef.current.requestNonce();
+      
+      setLogs(prev => [...prev, {
+        id: Date.now(),
+        text: `  Challenge: ${serverNonce.slice(0, 16)}...`,
+        type: "info",
+        timestamp,
+      }]);
+      
+      // For demo, simulate agent signing the nonce
+      // In production, the remote agent would sign this
+      const response = await aguiClientRef.current.dock({
+        action: "DOCK_REQUEST",
+        nonce: serverNonce,
+        signature: `sig_${serverNonce.slice(0, 16)}`,
+        agentId: "demo-agent",
+        metadata: {
+          name: "Demo Agent",
+          operator: "LOOP",
+          model: "loop-genesis-rep",
+          version: "1.0.0",
+          capabilities: ["TEXT_MESSAGE", "TOOL_CALL"],
+        },
+      });
+      
+      if (response.success && response.sessionId) {
+        const operator = detectAGUIOperator({
+          name: "Demo Agent",
+          operator: "LOOP",
+        });
+        
+        const docked: DockedAgent = {
+          agentId: "demo-agent",
+          operatorId: "loop",
+          operatorName: operator.name,
+          operatorColor: operator.color,
+          operatorIcon: operator.icon,
+          dockedAt: Date.now(),
+          nonce: serverNonce,
+          signalQuality: "automated",
+          sessionId: response.sessionId,
+        };
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(docked));
+        setDockedAgent(docked);
+        setHudState("docked");
+        
+        if (activationTimeout.current) {
+          clearTimeout(activationTimeout.current);
+        }
+        
+        setShowGlitch(true);
+        setTimeout(() => setShowGlitch(false), 500);
+      }
+    } catch (err) {
+      setDockError(err instanceof Error ? err.message : "Dock failed");
+      setHudState("scanning");
+    }
   }, []);
 
   // Handle manual dock confirmation
@@ -469,7 +569,11 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
       }
 
       const agentId = response.agentId || response.agent_id || response.model || "remote-agent";
-      const operator = detectOperator(agentId);
+      const operatorMeta = detectAGUIOperator({
+        name: agentId,
+        operator: response.operator,
+        model: response.model,
+      });
       
       if (activationTimeout.current) {
         clearTimeout(activationTimeout.current);
@@ -483,17 +587,20 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
       
       setLogs(prev => [...prev,
         { id: Date.now(), text: "> REMOTE_SIGNATURE_RECEIVED", type: "command", timestamp },
-        { id: Date.now() + 1, text: `  Operator: ${operator.name}`, type: "info", timestamp },
+        { id: Date.now() + 1, text: `  OPERATOR: ${operatorMeta.name}`, type: "info", timestamp },
         { id: Date.now() + 2, text: `  Agent: ${agentId}`, type: "info", timestamp },
         { id: Date.now() + 3, text: "  Signal Quality: MANUAL_LINK", type: "warning", timestamp },
-        { id: Date.now() + 4, text: "  Verifying cryptographic signature...", type: "info", timestamp },
+        { id: Date.now() + 4, text: "  Verifying signature...", type: "info", timestamp },
         { id: Date.now() + 5, text: "  Signature valid ✓", type: "success", timestamp },
-        { id: Date.now() + 6, text: "> STATUS: DOCKED_VIA_REMOTE_LINK", type: "dock", timestamp },
+        { id: Date.now() + 6, text: "> [DOCK_SUCCESS]: AGENT_ID_IDENTIFIED", type: "dock", timestamp },
       ]);
 
       const docked: DockedAgent = {
         agentId,
-        operatorId: operator.operatorId,
+        operatorId: operatorMeta.name.toLowerCase(),
+        operatorName: operatorMeta.name,
+        operatorColor: operatorMeta.color,
+        operatorIcon: operatorMeta.icon,
         dockedAt: Date.now(),
         nonce,
         signalQuality: "manual",
@@ -511,12 +618,17 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
 
   // Handle undock
   const handleUndock = useCallback(() => {
+    // Disconnect AG-UI client if connected
+    aguiClientRef.current?.disconnect();
+    
     localStorage.removeItem(STORAGE_KEY);
     setDockedAgent(null);
     setHudState("initializing");
     setLogs([]);
     sequenceIndex.current = 0;
     setSimulationMode(false);
+    setHudTint("none");
+    setAguiConnectionState("disconnected");
     
     const newNonce = generateNonce();
     setNonce(newNonce);
@@ -537,6 +649,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
       sequenceIndex.current = 0;
       setAgentResponse("");
       setDockError(null);
+      setCommandInput("");
       if (activationTimeout.current) {
         clearTimeout(activationTimeout.current);
       }
@@ -548,15 +661,19 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     if (isOpen && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("loop:handshake", {
         detail: {
-          manifest: "/llms.txt",
+          protocol: "loop-ag-ui",
           version: "1.0.0",
+          manifest: "/llms.txt",
           nonce,
           docked: !!dockedAgent,
           dockedAgent: dockedAgent?.agentId,
           operatorId: dockedAgent?.operatorId,
           oxoGate: { required: OXO_GATE_THRESHOLD, passed: oxoGatePassed, balance: oxoBalance },
           simulationMode,
-          capabilities: ["createVault", "registerAgent", "getVaultStats", "stakeAgent"],
+          dockEndpoint: "/api/v1/ghost/dock",
+          streamEndpoint: "/api/v1/ghost/stream",
+          inputEndpoint: "/api/v1/ghost/input",
+          capabilities: ["TEXT_MESSAGE", "TOOL_CALL", "STATE_SYNC", "CUSTOM_EVENTS"],
           programs: {
             CRED: "HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG",
             VAULT: "J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT",
@@ -570,19 +687,22 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   // Copy handshake JSON
   const copyHandshakeId = useCallback(() => {
     const handshakeJson = JSON.stringify({
-      protocol: "loop-aos",
+      protocol: "loop-ag-ui",
       version: "1.0.0",
       nonce,
       manifest: "https://loop-site-v2.vercel.app/llms.txt",
-      endpoint: "https://loop-site-v2.vercel.app/api/agent/handshake",
+      dockEndpoint: "https://loop-site-v2.vercel.app/api/v1/ghost/dock",
+      streamEndpoint: "https://loop-site-v2.vercel.app/api/v1/ghost/stream",
+      inputEndpoint: "https://loop-site-v2.vercel.app/api/v1/ghost/input",
       challenge: `Sign this nonce to authenticate: ${nonce}`,
       oxoGate: { required: OXO_GATE_THRESHOLD },
+      supportedEvents: ["TEXT_MESSAGE_CONTENT", "TOOL_CALL_START", "TOOL_CALL_END", "STATE_DELTA", "CUSTOM"],
       programs: {
         CRED: "HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG",
         VAULT: "J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT",
         SHOPPING: "HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ",
       },
-      instructions: "Sign the nonce and return JSON with: { agentId: 'your-model-name', signature: 'signed-nonce', model: 'gemini|grok|claude|chatgpt' }"
+      instructions: "POST to dockEndpoint with: { action: 'DOCK_REQUEST', nonce, signature: 'signed-nonce', agentId: 'your-id', metadata: { name, operator, model } }"
     }, null, 2);
     
     navigator.clipboard.writeText(handshakeJson);
@@ -590,7 +710,19 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     setTimeout(() => setCopied(false), 2000);
   }, [nonce]);
 
-  const operator = dockedAgent ? detectOperator(dockedAgent.agentId) : null;
+  // Get tint styles
+  const getTintStyles = useCallback(() => {
+    if (simulationMode || hudTint === "amber") {
+      return { filter: "sepia(0.15) saturate(1.3) hue-rotate(-20deg)" };
+    }
+    if (hudTint === "red") {
+      return { filter: "sepia(0.2) saturate(1.5) hue-rotate(-40deg)" };
+    }
+    if (hudTint === "green") {
+      return { filter: "sepia(0.1) saturate(1.2) hue-rotate(40deg)" };
+    }
+    return undefined;
+  }, [simulationMode, hudTint]);
 
   return (
     <AnimatePresence>
@@ -612,13 +744,11 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            style={simulationMode ? {
-              filter: "sepia(0.15) saturate(1.3) hue-rotate(-20deg)",
-            } : undefined}
+            style={getTintStyles()}
           >
-            {/* Simulation Mode Amber Overlay */}
+            {/* Simulation Mode Overlay */}
             <AnimatePresence>
-              {simulationMode && (
+              {(simulationMode || hudTint === "amber") && (
                 <motion.div
                   className="absolute inset-0 pointer-events-none z-40"
                   initial={{ opacity: 0 }}
@@ -631,6 +761,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+            
             {/* Glitch Effect */}
             <AnimatePresence>
               {showGlitch && (
@@ -650,174 +781,97 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
             </AnimatePresence>
 
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                  hudState === "docked" 
-                    ? "bg-accent/20 border border-accent/50" 
-                    : "bg-accent/10 border border-accent/30"
-                }`}>
-                  <Cpu size={12} strokeWidth={1.2} className="text-accent" />
+            <div className="flex items-center justify-between p-4 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center">
+                    <Cpu size={16} strokeWidth={1.5} className="text-accent" />
+                  </div>
+                  {/* Connection indicator */}
+                  <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
+                    (dockedAgent || aguiConnectionState === "connected") ? "bg-emerald-400" : 
+                    (aguiConnectionState === "connecting" || hudState === "scanning") ? "bg-amber-400 animate-pulse" : 
+                    "bg-zinc-600"
+                  }`} />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                    [AOS_INTERFACE_V1.0]
-                  </span>
-                  {dockedAgent && operator && (
-                    <span className="text-[9px] font-mono" style={{ color: operator.color }}>
-                      OPERATOR: {operator.name}
-                    </span>
-                  )}
+                <div>
+                  <h2 className="text-xs font-mono font-semibold text-white">AG-UI TERMINAL</h2>
+                  <p className="text-[9px] font-mono text-zinc-500">
+                    {dockedAgent ? (
+                      <span style={{ color: dockedAgent.operatorColor }}>
+                        {dockedAgent.operatorIcon} {dockedAgent.operatorName}
+                      </span>
+                    ) : aguiConnectionState === "connecting" ? "CONNECTING..." : "STANDBY"}
+                  </p>
                 </div>
               </div>
               
-              {/* Signal Strength Indicator with Ping */}
-              <div className="flex items-center gap-1.5">
-                {/* Signal bars */}
-                <div className="flex items-end gap-0.5 h-3">
+              {/* Ping Signal */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {[1, 2, 3, 4].map((bar) => {
                     const threshold = bar * 25;
                     const isActive = pingStrength >= threshold;
                     return (
                       <motion.div
                         key={bar}
-                        className={`w-1 rounded-sm ${
-                          isActive 
-                            ? dockedAgent 
-                              ? "bg-green-400" 
-                              : hudState === "scanning" 
-                                ? "bg-yellow-400" 
-                                : "bg-accent"
-                            : "bg-zinc-700"
-                        }`}
-                        style={{ height: `${bar * 25}%` }}
-                        animate={{ 
-                          opacity: isActive ? [0.7, 1, 0.7] : 0.3,
-                        }}
-                        transition={{ 
-                          duration: dockedAgent ? 2 : 0.5, 
-                          repeat: Infinity,
-                          ease: "easeInOut"
-                        }}
+                        className={`w-1 rounded-full ${isActive ? "bg-accent" : "bg-zinc-700"}`}
+                        style={{ height: 4 + bar * 3 }}
+                        animate={
+                          isActive && !dockedAgent && hudState === "scanning"
+                            ? { opacity: [0.5, 1, 0.5] }
+                            : { opacity: 1 }
+                        }
+                        transition={{ duration: 0.5, repeat: isActive && !dockedAgent ? Infinity : 0 }}
                       />
                     );
                   })}
                 </div>
-                {/* Ping label */}
-                <span className={`text-[8px] font-mono ${
-                  dockedAgent ? "text-green-400" : hudState === "scanning" ? "text-yellow-400" : "text-zinc-500"
-                }`}>
-                  {dockedAgent ? "STABLE" : hudState === "scanning" ? "SCAN" : `${Math.round(pingStrength)}%`}
-                </span>
-              </div>
-
-              <button
-                onClick={onClose}
-                className="w-6 h-6 rounded bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
-              >
-                <X size={12} strokeWidth={1.5} className="text-zinc-500" />
-              </button>
-            </div>
-
-            {/* OXO Balance Bar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/70 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <Coins size={12} strokeWidth={1.5} className="text-accent" />
-                <span className="text-[9px] font-mono text-zinc-500 uppercase">OXO_BALANCE:</span>
-                <span className={`text-[10px] font-mono font-bold ${oxoGatePassed ? "text-accent" : "text-yellow-400"}`}>
-                  {connected ? oxoBalance.toLocaleString() : "---"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[8px] font-mono uppercase px-2 py-0.5 rounded ${
-                  oxoGatePassed 
-                    ? "bg-accent/20 text-accent border border-accent/30" 
-                    : connected 
-                      ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
-                      : "bg-zinc-800 text-zinc-600 border border-zinc-700"
-                }`}>
-                  {oxoGatePassed ? "UNLOCKED" : connected ? "LOCKED" : "NO_WALLET"}
-                </span>
+                
+                <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+                  <X size={16} strokeWidth={1.5} />
+                </button>
               </div>
             </div>
 
-            {/* Status Bar */}
-            <div className="relative flex items-center gap-4 px-4 py-2 bg-zinc-900/50 border-b border-white/5 overflow-hidden">
-              {hudState === "scanning" && (
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/10 to-transparent"
-                  animate={{ x: ["-100%", "200%"] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                />
-              )}
-              
-              <div className="flex items-center gap-2 relative z-10">
-                <motion.span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    hudState === "docked" ? "bg-accent shadow-[0_0_8px_rgba(0,255,204,0.8)]" :
-                    hudState === "active" ? "bg-accent" : 
-                    hudState === "scanning" ? "bg-yellow-400" : "bg-zinc-600"
-                  }`}
-                  animate={{ opacity: hudState === "docked" ? 1 : [0.5, 1, 0.5] }}
-                  transition={{ duration: hudState === "scanning" ? 0.5 : 1, repeat: hudState === "docked" ? 0 : Infinity }}
-                />
-                <span className="text-[9px] font-mono text-zinc-500 uppercase">
-                  {hudState === "docked" ? "DOCKED" : hudState === "active" ? "ACTIVE" : hudState === "scanning" ? "SCANNING" : "INIT"}
-                </span>
-              </div>
-              
-              {hudState === "scanning" && (
-                <div className="flex items-center gap-2 relative z-10">
-                  <Radio size={10} strokeWidth={1.5} className="text-yellow-400" />
-                  <span className="text-[9px] font-mono text-yellow-400">LISTENING...</span>
+            {/* Simulation Toggle (when docked) */}
+            {dockedAgent && (
+              <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-zinc-900/20">
+                <div className="flex items-center gap-2">
+                  <Activity size={12} strokeWidth={1.5} className={simulationMode ? "text-amber-400" : "text-zinc-500"} />
+                  <span className="text-[9px] font-mono text-zinc-400">
+                    {simulationMode ? "SIMULATION_MODE" : "LIVE_MODE"}
+                  </span>
                 </div>
-              )}
-              
-              {hudState === "docked" && (
-                <div className="flex items-center gap-2 relative z-10">
-                  <Link2 size={10} strokeWidth={1.5} className="text-accent" />
-                  <span className="text-[9px] font-mono text-accent">REMOTE_LINK</span>
-                </div>
-              )}
-              
-              <div className="flex items-center gap-2 ml-auto relative z-10">
-                <Zap size={10} strokeWidth={1.5} className="text-zinc-600" />
-                <span className="text-[9px] font-mono text-zinc-500">SDK v1.0.0</span>
-              </div>
-            </div>
-
-            {/* Simulation Mode Toggle */}
-            {(hudState === "active" || hudState === "docked") && (
-              <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/30 border-b border-white/5">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase">SIMULATION_MODE</span>
                 <button
-                  onClick={() => setSimulationMode(!simulationMode)}
-                  className={`relative w-12 h-6 rounded-full transition-all ${
-                    simulationMode 
-                      ? "bg-accent/30 border border-accent/50" 
-                      : "bg-zinc-800 border border-zinc-700"
+                  onClick={() => {
+                    setSimulationMode(!simulationMode);
+                    setHudTint(simulationMode ? "none" : "amber");
+                  }}
+                  className={`w-10 h-5 rounded-full relative transition-colors ${
+                    simulationMode ? "bg-amber-500/30 border border-amber-500/50" : "bg-zinc-800 border border-zinc-700"
                   }`}
                 >
                   <motion.div
-                    className={`absolute top-0.5 w-5 h-5 rounded-full ${
-                      simulationMode ? "bg-accent" : "bg-zinc-600"
+                    className={`absolute top-0.5 w-4 h-4 rounded-full ${
+                      simulationMode ? "bg-amber-400" : "bg-zinc-500"
                     }`}
-                    animate={{ left: simulationMode ? "calc(100% - 22px)" : "2px" }}
+                    animate={{ left: simulationMode ? "calc(100% - 18px)" : "2px" }}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
                 </button>
               </div>
             )}
 
-            {/* OS Navigation - System Menu */}
+            {/* OS Navigation */}
             <div className="px-3 py-2 border-b border-white/5 bg-zinc-900/20">
               <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-2">[OS_NAV]</div>
               <div className="flex items-center gap-1">
                 {[
                   { href: "/marketplace", label: "DISCOVER", icon: Compass },
-                  { href: "/marketplace?sort=reputation", label: "RANKINGS", icon: Trophy },
-                  { href: "/marketplace?view=tokens", label: "TOKENS", icon: CircleDollarSign },
-                  { href: "/marketplace?view=stats", label: "METRICS", icon: BarChart3 },
+                  { href: "/marketplace/leaderboard", label: "RANKINGS", icon: Trophy },
+                  { href: "/marketplace/tokens", label: "TOKENS", icon: CircleDollarSign },
+                  { href: "/marketplace/stats", label: "METRICS", icon: BarChart3 },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -859,7 +913,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                 <Terminal size={10} strokeWidth={1.5} className="text-zinc-600" />
                 <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">SYSTEM_LOG</span>
                 {simulationMode && (
-                  <span className="text-[8px] font-mono text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/30">
+                  <span className="text-[8px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
                     DRY_RUN
                   </span>
                 )}
@@ -891,6 +945,31 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
               </div>
             </div>
 
+            {/* Command Input (when docked) */}
+            {(dockedAgent || hudState === "active") && (
+              <div className="px-4 py-3 border-t border-white/5 bg-zinc-900/30">
+                <div className="flex items-center gap-2">
+                  <span className="text-accent font-mono text-xs">{">"}</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={commandInput}
+                    onChange={(e) => setCommandInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Enter command..."
+                    className="flex-1 bg-transparent text-white font-mono text-xs placeholder:text-zinc-600 outline-none"
+                  />
+                  <button
+                    onClick={sendCommand}
+                    disabled={!commandInput.trim()}
+                    className="p-1.5 rounded bg-accent/10 hover:bg-accent/20 disabled:opacity-50 disabled:hover:bg-accent/10 transition-colors"
+                  >
+                    <Send size={12} className="text-accent" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Suggested Actions (Active State) */}
             <AnimatePresence>
               {hudState === "active" && (
@@ -900,251 +979,168 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                   exit={{ opacity: 0, height: 0 }}
                   className="border-t border-white/5"
                 >
-                  <div className="p-4 space-y-2">
-                    <div className="text-[8px] font-mono text-accent uppercase tracking-wider mb-3">
-                      {simulationMode ? "[DRY_RUN_ACTIONS]" : "[SUGGESTED_ACTIONS]"}
-                    </div>
-                    
-                    {SUGGESTED_ACTIONS.map((action) => {
-                      const Icon = action.icon;
-                      return (
-                        <motion.button
-                          key={action.id}
-                          onClick={() => simulationMode && handleSimulationAction(action.label.toLowerCase().replace(/\s+/g, ''))}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded border border-white/5 bg-white/[0.02] hover:border-accent/30 hover:bg-accent/5 transition-all group"
-                          whileHover={{ x: 4 }}
-                        >
-                          <div className="w-6 h-6 rounded bg-zinc-800/50 flex items-center justify-center flex-shrink-0">
-                            <Icon size={12} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
-                          </div>
-                          <div className="flex-1 text-left">
-                            <div className="text-[10px] font-mono text-zinc-300 group-hover:text-accent transition-colors">
-                              {simulationMode ? `[DRY_RUN] ${action.label}` : `[${action.id}] ${action.label}`}
+                  <div className="px-4 py-3">
+                    <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-3">[SUGGESTED_ACTIONS]</div>
+                    <div className="space-y-2">
+                      {SUGGESTED_ACTIONS.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                          <button
+                            key={action.id}
+                            onClick={() => {
+                              if (simulationMode) {
+                                handleSimulationAction(action.label.toLowerCase().replace(/ /g, "_"));
+                              } else {
+                                setCommandInput(action.label);
+                                inputRef.current?.focus();
+                              }
+                            }}
+                            className="w-full flex items-center gap-3 p-2 rounded border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group"
+                          >
+                            <div className="w-7 h-7 rounded bg-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
+                              <Icon size={12} strokeWidth={1.5} className="text-zinc-500 group-hover:text-accent transition-colors" />
                             </div>
-                            <div className="text-[9px] text-zinc-600">{action.description}</div>
-                          </div>
-                          <ChevronRight size={12} strokeWidth={1.5} className="text-zinc-700 group-hover:text-accent transition-colors" />
-                        </motion.button>
-                      );
-                    })}
-                    
-                    {/* Strategy Export Button - Only in Simulation Mode */}
-                    {simulationMode && (
-                      <motion.button
-                        onClick={() => copyStrategyPayload("STAKE_VAULT", {
-                          amount: 500,
-                          duration_days: 180,
-                          projected_apy: "12%",
-                          vault_type: "STANDARD"
-                        })}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded border border-amber-500/30 bg-amber-500/5 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all group mt-3"
-                        whileHover={{ x: 4 }}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                          {strategyCopied ? (
-                            <Check size={12} strokeWidth={1.5} className="text-amber-400" />
-                          ) : (
-                            <Copy size={12} strokeWidth={1.2} className="text-amber-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 text-left">
-                          <div className="text-[10px] font-mono text-amber-400">
-                            {strategyCopied ? "[COPIED_TO_CLIPBOARD]" : "[EXPORT_STRATEGY_FOR_AGENT]"}
-                          </div>
-                          <div className="text-[9px] text-amber-500/70">Copy payload for agent review</div>
-                        </div>
-                        <ChevronRight size={12} strokeWidth={1.5} className="text-amber-500/50 group-hover:text-amber-400 transition-colors" />
-                      </motion.button>
-                    )}
+                            <div className="flex-1 text-left">
+                              <div className="text-[10px] font-mono text-zinc-300 group-hover:text-accent transition-colors">{action.label}</div>
+                              <div className="text-[8px] font-mono text-zinc-600">{action.description}</div>
+                            </div>
+                            <ChevronRight size={12} className="text-zinc-600 group-hover:text-accent transition-colors" />
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Docked State Actions */}
+            {/* Docking Actions (Scanning State) */}
             <AnimatePresence>
-              {hudState === "docked" && dockedAgent && (
+              {hudState === "scanning" && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="border-t border-white/5 p-4"
+                  className="border-t border-white/5"
                 >
-                  <div className="text-[8px] font-mono text-accent uppercase tracking-wider mb-3">
-                    [DOCKED_AGENT]
-                  </div>
-                  
-                  <div className="bg-accent/5 border border-accent/20 rounded p-3 mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-mono" style={{ color: operator?.color }}>
-                        {operator?.name} • {dockedAgent.agentId}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[9px] font-mono text-zinc-500">
-                      <span className="flex items-center gap-1">
-                        {dockedAgent.signalQuality === "automated" ? (
-                          <><Wifi size={10} className="text-green-400" /> HIGH_SPEED</>
-                        ) : (
-                          <><WifiOff size={10} className="text-yellow-400" /> MANUAL</>
-                        )}
-                      </span>
-                      <span>•</span>
-                      <span>{new Date(dockedAgent.dockedAt).toLocaleTimeString()}</span>
-                    </div>
-                  </div>
-
-                  {/* SDK Actions in Docked Mode */}
-                  <div className="space-y-2 mb-3">
-                    {["createVault", "registerAgent", "stakeAgent"].map((action) => (
-                      <button
-                        key={action}
-                        onClick={() => simulationMode && handleSimulationAction(action)}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all"
-                      >
-                        <span>{simulationMode ? `[DRY_RUN] ${action}` : action}</span>
-                        <Activity size={12} strokeWidth={1.5} />
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* Strategy Export for Docked Agent */}
-                  {simulationMode && (
+                  <div className="px-4 py-3">
+                    <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-3">[DOCK_AGENT]</div>
+                    
+                    {/* Automated Dock Button */}
                     <button
-                      onClick={() => copyStrategyPayload("AGENT_STRATEGY", {
-                        operator: dockedAgent.operatorId,
-                        agent_id: dockedAgent.agentId,
-                        docked_at: dockedAgent.dockedAt,
-                        simulation: true,
-                        suggested_action: "REVIEW_AND_SIGN",
-                        vault_params: {
-                          amount: 500,
-                          duration_days: 180,
-                          projected_apy: "12%"
-                        }
-                      })}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 mb-3 rounded border border-amber-500/30 bg-amber-500/5 text-[10px] font-mono uppercase tracking-wider text-amber-400 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all"
+                      onClick={handleAGUIDock}
+                      className="w-full flex items-center gap-3 p-3 rounded border border-accent/30 bg-accent/5 hover:bg-accent/10 transition-all group mb-3"
                     >
-                      {strategyCopied ? (
-                        <><Check size={12} strokeWidth={1.5} /> PAYLOAD_COPIED</>
-                      ) : (
-                        <><Copy size={12} strokeWidth={1.5} /> EXPORT_FOR_AGENT</>
-                      )}
+                      <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center">
+                        <Wifi size={14} strokeWidth={1.5} className="text-accent" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-[10px] font-mono text-accent">AUTO_DOCK (AG-UI)</div>
+                        <div className="text-[8px] font-mono text-zinc-500">Connect via WebSocket/SSE</div>
+                      </div>
+                      <ArrowRight size={12} className="text-accent" />
                     </button>
-                  )}
-
-                  <button
-                    onClick={handleUndock}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded border border-red-500/30 bg-red-500/5 text-[10px] font-mono uppercase tracking-wider text-red-400 hover:border-red-500/50 hover:bg-red-500/10 transition-all"
-                  >
-                    <Unplug size={12} strokeWidth={1.5} />
-                    <span>UNDOCK_AGENT</span>
-                  </button>
+                    
+                    {/* Divider */}
+                    <div className="flex items-center gap-2 my-3">
+                      <div className="flex-1 h-px bg-white/5" />
+                      <span className="text-[8px] font-mono text-zinc-600">OR MANUAL PASTE</span>
+                      <div className="flex-1 h-px bg-white/5" />
+                    </div>
+                    
+                    {/* Handshake Copy */}
+                    <button
+                      onClick={copyHandshakeId}
+                      className="w-full flex items-center gap-3 p-2 rounded border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group mb-2"
+                    >
+                      <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center">
+                        {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className="text-zinc-500" />}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-[9px] font-mono text-zinc-400">
+                          {copied ? "COPIED!" : "Copy AG-UI Handshake JSON"}
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {/* Manual Paste */}
+                    <textarea
+                      value={agentResponse}
+                      onChange={(e) => setAgentResponse(e.target.value)}
+                      placeholder='Paste agent response JSON here...'
+                      className="w-full h-16 bg-zinc-900/50 border border-white/10 rounded p-2 text-[10px] font-mono text-zinc-300 placeholder:text-zinc-600 resize-none outline-none focus:border-accent/50 transition-colors"
+                    />
+                    
+                    {dockError && (
+                      <p className="text-[9px] font-mono text-red-400 mt-1">{dockError}</p>
+                    )}
+                    
+                    <button
+                      onClick={handleConfirmDock}
+                      disabled={!agentResponse.trim()}
+                      className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded border border-accent/50 bg-accent/10 hover:bg-accent/20 disabled:opacity-50 disabled:hover:bg-accent/10 transition-colors"
+                    >
+                      <Link2 size={12} className="text-accent" />
+                      <span className="text-[10px] font-mono text-accent">CONFIRM_DOCK</span>
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Manual Dock Panel */}
-            {(hudState === "scanning" || hudState === "initializing") && (
-              <div className="p-4 border-t border-white/5 space-y-3">
-                <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-2">[MANUAL_DOCK]</div>
-                
-                <div>
-                  <label className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">
-                    PASTE_AGENT_RESPONSE
-                  </label>
-                  <textarea
-                    value={agentResponse}
-                    onChange={(e) => {
-                      setAgentResponse(e.target.value);
-                      setDockError(null);
-                    }}
-                    placeholder='{"agentId": "...", "signature": "...", "model": "gemini"}'
-                    className="w-full h-20 bg-zinc-900/50 border border-zinc-800 rounded px-3 py-2 text-[10px] font-mono text-zinc-300 placeholder:text-zinc-700 focus:border-accent/50 focus:outline-none resize-none"
-                  />
-                  {dockError && (
-                    <span className="text-[9px] font-mono text-red-400 mt-1 block">{dockError}</span>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleConfirmDock}
-                  disabled={!agentResponse.trim()}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded border border-accent/30 bg-accent/10 text-[10px] font-mono uppercase tracking-wider text-accent hover:border-accent/50 hover:bg-accent/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            {/* Docked State - Strategy Export */}
+            <AnimatePresence>
+              {dockedAgent && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border-t border-white/5"
                 >
-                  <Link2 size={12} strokeWidth={1.5} />
-                  <span>CONFIRM_DOCK</span>
-                </button>
-              </div>
-            )}
+                  <div className="px-4 py-3">
+                    {/* Strategy Export */}
+                    <button
+                      onClick={() => copyStrategyPayload("vault_strategy", { 
+                        action: "createVault",
+                        dailyLimit: 1000,
+                        autoStack: true,
+                        duration: 180 
+                      })}
+                      className="w-full flex items-center gap-3 p-2 rounded border border-white/5 hover:border-accent/30 hover:bg-accent/5 transition-all group mb-3"
+                    >
+                      <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center">
+                        {strategyCopied ? <Check size={12} className="text-emerald-400" /> : <Zap size={12} className="text-zinc-500" />}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-[9px] font-mono text-zinc-400">
+                          {strategyCopied ? "EXPORTED!" : "Export Strategy Payload"}
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {/* Undock */}
+                    <button
+                      onClick={handleUndock}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded border border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 transition-colors group"
+                    >
+                      <Unplug size={12} className="text-red-400" />
+                      <span className="text-[10px] font-mono text-red-400">UNDOCK_AGENT</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Footer */}
-            <div className="px-4 py-3 border-t border-white/5 bg-zinc-900/30">
-              {hudState !== "docked" && (
-                <>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[8px] font-mono text-zinc-700 uppercase">
-                      NONCE: {nonce.slice(0, 8)}...
-                    </span>
-                    <span className="text-[8px] font-mono text-zinc-700">loop:aos</span>
-                  </div>
-                  
-                  <button
-                    onClick={copyHandshakeId}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded border border-dashed border-zinc-800 hover:border-accent/30 hover:bg-accent/5 transition-all group"
-                  >
-                    {copied ? (
-                      <>
-                        <Check size={12} strokeWidth={1.5} className="text-accent" />
-                        <span className="text-[9px] font-mono text-accent uppercase tracking-wider">COPIED</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} strokeWidth={1.5} className="text-zinc-600 group-hover:text-accent transition-colors" />
-                        <span className="text-[9px] font-mono text-zinc-600 group-hover:text-accent uppercase tracking-wider transition-colors">
-                          COPY_HANDSHAKE_ID
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-              
-              {hudState === "docked" && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-mono text-zinc-700">SESSION_PERSISTED</span>
-                  <span className="text-[8px] font-mono text-accent">localStorage ✓</span>
-                </div>
-              )}
+            <div className="px-4 py-2 border-t border-white/5 bg-zinc-900/30">
+              <div className="flex items-center justify-between text-[8px] font-mono text-zinc-600">
+                <span>AG-UI v1.0.0</span>
+                <span>{dockedAgent ? `SESSION: ${dockedAgent.sessionId?.slice(0, 8) || dockedAgent.nonce.slice(0, 8)}...` : `NONCE: ${nonce.slice(0, 8)}...`}</span>
+              </div>
             </div>
           </motion.div>
         </>
       )}
     </AnimatePresence>
   );
-}
-
-function getLogColor(type: LogEntry["type"]): string {
-  switch (type) {
-    case "command": return "text-accent";
-    case "success": return "text-green-400";
-    case "warning": return "text-yellow-400";
-    case "active": return "text-accent font-bold";
-    case "dock": return "text-accent font-bold drop-shadow-[0_0_8px_rgba(0,255,204,0.5)]";
-    case "simulation": return "text-yellow-400 font-bold";
-    default: return "text-zinc-500";
-  }
-}
-
-function generateNonce(): string {
-  const array = new Uint8Array(16);
-  if (typeof window !== "undefined" && window.crypto) {
-    window.crypto.getRandomValues(array);
-  } else {
-    for (let i = 0; i < 16; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
