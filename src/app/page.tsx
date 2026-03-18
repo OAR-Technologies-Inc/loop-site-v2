@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton, SystemTicker } from "@/components/ui";
+import { C2Nav, BentoCard, BentoGrid, Metric, LiveBadge, ShimmerButton, SystemTicker, GridBackground } from "@/components/ui";
 
 export default function HomePage() {
   const [tvl, setTvl] = useState(0);
@@ -32,7 +32,8 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      <GridBackground />
       <C2Nav />
       
       {/* Hero */}
