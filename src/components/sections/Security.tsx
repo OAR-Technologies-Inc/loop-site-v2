@@ -195,7 +195,7 @@ export function Security() {
                 </div>
               </div>
               <a
-                href="/docs/SECURITY-ARCHITECTURE.md"
+                href="https://github.com/OAR-Technologies-Inc/loop-protocol/blob/master/docs/SECURITY-ARCHITECTURE.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-forest-light hover:text-forest transition-colors flex items-center gap-2"
