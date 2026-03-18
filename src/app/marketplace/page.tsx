@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { C2Nav, BentoCard, BentoGrid, ShimmerButton, Metric, GridBackground } from "@/components/ui";
+import { motion, AnimatePresence } from "framer-motion";
+import { C2Nav, BentoCard, BentoGrid, ShimmerButton, GridBackground } from "@/components/ui";
 import { 
   Target, Database, MapPin, Eye, ArrowLeftRight, TrendingUp, Bot, 
-  Terminal, ChevronRight, Activity, Zap, Shield, Cpu, Lock,
-  Plus, Play, BarChart3
+  Terminal, ChevronRight, Activity, Plus, Play, BarChart3, Coins
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
@@ -32,6 +31,7 @@ interface Agent {
   total_earnings: number;
   status: string;
   capabilities: { capability_id: string; capability_name: string | null }[];
+  yieldHistory?: number[];
 }
 
 export default function MarketplacePage() {
@@ -39,10 +39,32 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"reputation" | "stake" | "calls">("reputation");
+  const [pulsingIndex, setPulsingIndex] = useState<number | null>(null);
+  const [captureToast, setCaptureToast] = useState<{ index: number; amount: number } | null>(null);
 
   useEffect(() => {
     fetchAgents();
   }, [selectedCapability, sortBy]);
+
+  // Random pulse effect every 5-10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (agents.length > 0) {
+        const randomIndex = Math.floor(Math.random() * agents.length);
+        const captureAmount = (Math.random() * 0.8 + 0.2).toFixed(1);
+        
+        setPulsingIndex(randomIndex);
+        setCaptureToast({ index: randomIndex, amount: parseFloat(captureAmount) });
+        
+        setTimeout(() => {
+          setPulsingIndex(null);
+          setCaptureToast(null);
+        }, 2000);
+      }
+    }, Math.random() * 5000 + 5000); // 5-10 seconds
+
+    return () => clearInterval(interval);
+  }, [agents.length]);
 
   async function fetchAgents() {
     setLoading(true);
@@ -80,7 +102,7 @@ export default function MarketplacePage() {
       <div className="pt-24 pb-20 px-6">
         <div className="max-w-7xl mx-auto">
           
-          {/* Header with Terminal Output */}
+          {/* Header */}
           <div className="mb-6">
             <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-mono mb-1">
               <Terminal size={10} strokeWidth={1.5} />
@@ -112,7 +134,7 @@ export default function MarketplacePage() {
               </div>
               <div className="flex-1 p-4">
                 <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[TOTAL_STAKED]</span>
-                <span className="text-lg font-mono font-bold">${(totalStaked / 1_000_000).toFixed(1)}M</span>
+                <span className="text-lg font-mono font-bold">{(totalStaked / 1_000_000).toFixed(1)}M OXO</span>
               </div>
               <div className="flex-1 p-4">
                 <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider block mb-1">[CALLS_24H]</span>
@@ -182,7 +204,7 @@ export default function MarketplacePage() {
             </BentoCard>
           </BentoGrid>
 
-          {/* Capability Filter Strip */}
+          {/* Capability Filter */}
           <div className="flex items-center gap-1 mb-6 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setSelectedCapability(null)}
@@ -224,11 +246,11 @@ export default function MarketplacePage() {
             </div>
           </div>
 
-          {/* Agent Grid — High Density Bento */}
+          {/* Agent Grid — Heatmap Bento 2.0 */}
           {loading ? (
-            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
               {[...Array(12)].map((_, i) => (
-                <div key={i} className="h-32 bg-zinc-900/30 rounded border border-zinc-800/50 animate-pulse" />
+                <div key={i} className="h-36 bg-zinc-900/30 rounded border border-zinc-800/50 animate-pulse" />
               ))}
             </div>
           ) : filteredAgents.length === 0 ? (
@@ -241,8 +263,13 @@ export default function MarketplacePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-              {filteredAgents.map((agent) => (
-                <AgentTile key={agent.pubkey} agent={agent} />
+              {filteredAgents.map((agent, index) => (
+                <AgentTile 
+                  key={agent.pubkey} 
+                  agent={agent} 
+                  isPulsing={pulsingIndex === index}
+                  captureAmount={captureToast?.index === index ? captureToast.amount : null}
+                />
               ))}
             </div>
           )}
@@ -253,7 +280,7 @@ export default function MarketplacePage() {
               <div className="font-mono">
                 <span className="text-[8px] text-zinc-600 uppercase tracking-wider">[REGISTRY_STATUS]</span>
                 <div className="text-xs text-zinc-500 mt-1">
-                  {agents.length} indexed • Open for deployments
+                  {agents.length} indexed • OXO staking active
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -272,7 +299,7 @@ export default function MarketplacePage() {
   );
 }
 
-function AgentTile({ agent }: { agent: Agent }) {
+function AgentTile({ agent, isPulsing, captureAmount }: { agent: Agent; isPulsing: boolean; captureAmount: number | null }) {
   const capabilities = agent.capabilities
     .map(c => CAPABILITIES.find(cap => cap.id === c.capability_id))
     .filter(Boolean)
@@ -280,13 +307,38 @@ function AgentTile({ agent }: { agent: Agent }) {
 
   const PrimaryIcon = capabilities[0]?.icon || Bot;
 
+  // Generate yield sparkline data
+  const yieldData = agent.yieldHistory || generateSparklineData();
+
   return (
     <Link href={`/marketplace/agent/${agent.pubkey}`}>
       <motion.div
-        className="group relative bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded p-3 h-full transition-all hover:border-accent/30 hover:shadow-[0_0_20px_rgba(0,255,204,0.05)]"
+        className={`group relative bg-zinc-900/40 backdrop-blur-sm border rounded p-3 h-full transition-all ${
+          isPulsing 
+            ? "border-accent shadow-[0_0_30px_rgba(0,255,204,0.3)]" 
+            : "border-zinc-800/50 hover:border-accent/30 hover:shadow-[0_0_20px_rgba(0,255,204,0.05)]"
+        }`}
         whileHover={{ scale: 1.02, y: -2 }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        animate={isPulsing ? { 
+          borderColor: ["rgba(0,255,204,0.3)", "rgba(0,255,204,0.8)", "rgba(0,255,204,0.3)"],
+        } : {}}
       >
+        {/* Capture Toast */}
+        <AnimatePresence>
+          {captureAmount && (
+            <motion.div
+              className="absolute -top-2 -right-2 z-10 flex items-center gap-1 bg-accent text-zinc-950 px-2 py-1 rounded text-[10px] font-mono font-bold"
+              initial={{ opacity: 0, y: 10, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <Coins size={10} strokeWidth={2} />
+              +{captureAmount} OXO
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Status Dot */}
         <motion.div
           className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${agent.status === "active" ? "bg-accent" : "bg-zinc-700"}`}
@@ -306,6 +358,11 @@ function AgentTile({ agent }: { agent: Agent }) {
           </div>
         </div>
 
+        {/* Yield Sparkline */}
+        <div className="h-6 mb-2">
+          <YieldSparkline data={yieldData} />
+        </div>
+
         {/* Compact Stats */}
         <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] font-mono">
           <div>
@@ -313,7 +370,7 @@ function AgentTile({ agent }: { agent: Agent }) {
             <span className="text-accent ml-1">{agent.reputation_percent}</span>
           </div>
           <div>
-            <span className="text-zinc-600">STK</span>
+            <span className="text-zinc-600">OXO</span>
             <span className="text-zinc-400 ml-1">{(agent.stake_amount / 1_000_000).toFixed(0)}M</span>
           </div>
         </div>
@@ -333,12 +390,59 @@ function AgentTile({ agent }: { agent: Agent }) {
         </div>
 
         {/* Runtime Label */}
-        <div className="absolute bottom-2 left-2 text-[6px] font-mono text-zinc-700 uppercase">
-          NITRO
-        </div>
+        <div className="absolute bottom-2 left-2 text-[6px] font-mono text-zinc-700 uppercase">NITRO</div>
       </motion.div>
     </Link>
   );
+}
+
+function YieldSparkline({ data }: { data: number[] }) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  
+  const points = data.map((value, i) => {
+    const x = (i / (data.length - 1)) * 100;
+    const y = 100 - ((value - min) / range) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+      <defs>
+        <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(0,255,204,0.3)" />
+          <stop offset="100%" stopColor="rgba(0,255,204,0)" />
+        </linearGradient>
+      </defs>
+      
+      {/* Area fill */}
+      <polygon
+        points={`0,100 ${points} 100,100`}
+        fill="url(#sparklineGradient)"
+      />
+      
+      {/* Line */}
+      <polyline
+        points={points}
+        fill="none"
+        stroke="rgba(0,255,204,0.8)"
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function generateSparklineData(): number[] {
+  const data = [];
+  let value = 50 + Math.random() * 30;
+  for (let i = 0; i < 12; i++) {
+    value += (Math.random() - 0.4) * 15;
+    value = Math.max(10, Math.min(90, value));
+    data.push(value);
+  }
+  return data;
 }
 
 function getMockAgents(): Agent[] {
