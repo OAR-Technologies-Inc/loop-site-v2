@@ -217,53 +217,41 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   }, [dockedAgent, hudState, aguiConnectionState, pairingStatus]);
   
   // Generate pairing code
-  const generatePairingCode = useCallback(async () => {
+  // Generate pairing code CLIENT-SIDE (no server call needed)
+  const generatePairingCode = useCallback(() => {
     setPairingStatus("generating");
     setDockError(null);
     
     const timestamp = new Date().toISOString().slice(11, 19);
-    setLogs(prev => [...prev, {
-      id: Date.now(),
-      text: "> GENERATING_PAIRING_CODE...",
-      type: "command",
-      timestamp,
-    }]);
     
-    try {
-      const res = await fetch("/api/v1/ghost/pair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", nonce }),
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        setPairingCode(data.code);
-        setPairingBrowserSession(data.browserSessionId);
-        setPairingExpiry(data.expiresAt);
-        setPairingStatus("waiting");
-        
-        setLogs(prev => [...prev,
-          { id: Date.now(), text: `  Code Generated: ${data.code}`, type: "success", timestamp },
-          { id: Date.now() + 1, text: `  Expires in: ${data.expiresIn}s`, type: "info", timestamp },
-          { id: Date.now() + 2, text: "> WAITING_FOR_AGENT_CONNECTION...", type: "warning", timestamp },
-        ]);
-        
-        // Start polling for agent connection
-        startPairingPoll(data.browserSessionId);
-      } else {
-        setPairingStatus("idle");
-        setDockError(data.error || "Failed to generate code");
-      }
-    } catch (err) {
-      setPairingStatus("idle");
-      setDockError(err instanceof Error ? err.message : "Network error");
+    // Generate 6-char code client-side
+    const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
     }
-  }, [nonce]);
+    
+    const now = Date.now();
+    const expiresAt = now + 5 * 60 * 1000; // 5 minutes
+    
+    setPairingCode(code);
+    setPairingBrowserSession(code); // Use code as session identifier
+    setPairingExpiry(expiresAt);
+    setPairingStatus("waiting");
+    
+    setLogs(prev => [...prev,
+      { id: Date.now(), text: "> GENERATING_PAIRING_CODE...", type: "command", timestamp },
+      { id: Date.now() + 1, text: `  Code: ${code}`, type: "success", timestamp },
+      { id: Date.now() + 2, text: `  Tell your AI: "Connect to Loop with code ${code}"`, type: "info", timestamp },
+      { id: Date.now() + 3, text: "> WAITING_FOR_AGENT...", type: "warning", timestamp },
+    ]);
+    
+    // Start polling for agent registration
+    startPairingPoll(code);
+  }, []);
   
-  // Poll for agent connection
-  const startPairingPoll = useCallback((browserSessionId: string) => {
+  // Poll for agent registration (agent creates entry, we just read it)
+  const startPairingPoll = useCallback((code: string) => {
     // Clear any existing poll
     if (pairingPollRef.current) {
       clearInterval(pairingPollRef.current);
@@ -271,11 +259,8 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     
     pairingPollRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/v1/ghost/pair", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "status", browserSessionId }),
-        });
+        // Simple GET request - just checking if agent registered
+        const res = await fetch(`/api/v1/ghost/pair?code=${code}`);
         const data = await res.json();
         
         if (data.status === "paired" && data.agent) {
@@ -303,8 +288,8 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
             operatorName: data.agent.operator,
             operatorColor: data.agent.operatorColor,
             operatorIcon: data.agent.operatorIcon,
-            dockedAt: data.agent.pairedAt,
-            nonce: nonce,
+            dockedAt: data.agent.registeredAt || Date.now(),
+            nonce: code,
             signalQuality: "automated",
             sessionId: data.agent.sessionId,
           };

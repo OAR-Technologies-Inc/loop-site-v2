@@ -1,15 +1,15 @@
 /**
- * AG-UI Pairing Endpoint (Consolidated)
+ * AG-UI Pairing Endpoint v2 - Reversed Flow
  * 
- * All pairing operations in ONE endpoint to share in-memory state
- * within a single serverless function invocation context.
+ * NEW FLOW (avoids serverless isolation issues):
+ * 1. Browser generates a 6-digit code CLIENT-SIDE
+ * 2. Browser shows code and polls GET /pair?code=XXXXXX
+ * 3. User tells AI the code
+ * 4. AI POSTs /pair with { code, agentId, metadata } - THIS CREATES THE ENTRY
+ * 5. Browser's GET poll sees the entry and connects
  * 
- * POST body.action:
- *   - "create"  → Browser requests a pairing code
- *   - "claim"   → Agent claims a pairing code
- *   - "status"  → Check pairing status
- * 
- * For production, use Redis/Vercel KV instead of in-memory.
+ * This way, only the agent's POST creates data. Browser just reads.
+ * No race condition, no shared state issues.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,58 +17,38 @@ import { createHash } from "crypto";
 import { detectOperator } from "@/lib/ag-ui/types";
 
 // ============================================================================
-// In-Memory Store (shared within this function's container)
-// For production: Use Vercel KV, Upstash Redis, or a database
+// Global Store - entries created by agent, read by browser
 // ============================================================================
 
 interface PairingEntry {
   code: string;
-  browserSessionId: string;
-  browserNonce: string;
-  createdAt: number;
-  expiresAt: number;
-  status: "pending" | "paired" | "expired";
-  
-  // Filled when agent pairs
-  agentSessionId?: string;
-  agentId?: string;
-  agentMetadata?: {
+  agentSessionId: string;
+  agentId: string;
+  agentMetadata: {
     name: string;
     operator?: string;
     model?: string;
     capabilities?: string[];
   };
-  pairedAt?: number;
+  createdAt: number;
+  expiresAt: number;
 }
 
-// Global stores (persist across requests in same container)
-const pairingByCode = new Map<string, PairingEntry>();
-const pairingByBrowser = new Map<string, string>(); // browserSessionId -> code
-
-// Generate 6-char code avoiding confusing characters
-function generateCode(): string {
-  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+// Global store (persists within function container)
+const pairingStore = new Map<string, PairingEntry>();
 
 // Clean expired entries
 function cleanExpired() {
   const now = Date.now();
-  for (const [code, entry] of pairingByCode) {
-    if (entry.status === "pending" && now > entry.expiresAt) {
-      entry.status = "expired";
-      pairingByBrowser.delete(entry.browserSessionId);
-      pairingByCode.delete(code);
+  for (const [code, entry] of pairingStore) {
+    if (now > entry.expiresAt) {
+      pairingStore.delete(code);
     }
   }
 }
 
 // ============================================================================
-// POST Handler - All operations
+// POST - Agent registers with a pairing code
 // ============================================================================
 
 export async function POST(request: NextRequest) {
@@ -76,163 +56,16 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const action = body.action || "claim"; // Default to claim for backward compat
+    const { code, agentId, metadata } = body;
     
-    // ========================================================================
-    // ACTION: CREATE - Browser requests a pairing code
-    // ========================================================================
-    if (action === "create") {
-      // Generate browser session if not provided
-      const browserSessionId = body.browserSessionId || createHash("sha256")
-        .update(`browser-${Date.now()}-${Math.random()}`)
-        .digest("hex");
-      
-      const browserNonce = body.nonce || createHash("sha256")
-        .update(`nonce-${Date.now()}-${Math.random()}`)
-        .digest("hex")
-        .slice(0, 32);
-      
-      // Remove existing pairing for this browser
-      const existingCode = pairingByBrowser.get(browserSessionId);
-      if (existingCode) {
-        pairingByCode.delete(existingCode);
-        pairingByBrowser.delete(browserSessionId);
-      }
-      
-      // Generate unique code
-      let code = generateCode();
-      let attempts = 0;
-      while (pairingByCode.has(code) && attempts < 10) {
-        code = generateCode();
-        attempts++;
-      }
-      
-      const now = Date.now();
-      const entry: PairingEntry = {
-        code,
-        browserSessionId,
-        browserNonce,
-        createdAt: now,
-        expiresAt: now + 5 * 60 * 1000, // 5 minutes
-        status: "pending",
-      };
-      
-      pairingByCode.set(code, entry);
-      pairingByBrowser.set(browserSessionId, code);
-      
-      // Debug log
-      console.log(`[PAIR] Created code ${code} for browser ${browserSessionId.slice(0, 8)}...`);
-      console.log(`[PAIR] Store size: ${pairingByCode.size} codes`);
-      
-      return NextResponse.json({
-        success: true,
-        code: entry.code,
-        browserSessionId: entry.browserSessionId,
-        expiresAt: entry.expiresAt,
-        expiresIn: Math.floor((entry.expiresAt - now) / 1000),
-        statusEndpoint: `/api/v1/ghost/pair`,
-        instructions: `Tell your AI agent: "Connect to Loop Protocol with pairing code: ${entry.code}"`,
-      }, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "X-Browser-Session": browserSessionId,
-          "X-Pairing-Code": entry.code,
-        },
-      });
-    }
+    // Validate code
+    const normalizedCode = (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     
-    // ========================================================================
-    // ACTION: STATUS - Check pairing status
-    // ========================================================================
-    if (action === "status") {
-      const browserSessionId = body.browserSessionId;
-      const code = body.code;
-      
-      let entry: PairingEntry | undefined;
-      
-      if (browserSessionId) {
-        const foundCode = pairingByBrowser.get(browserSessionId);
-        if (foundCode) {
-          entry = pairingByCode.get(foundCode);
-        }
-      } else if (code) {
-        entry = pairingByCode.get(code.toUpperCase());
-      }
-      
-      // Debug log
-      console.log(`[PAIR] Status check: browser=${browserSessionId?.slice(0, 8)}... code=${code}`);
-      console.log(`[PAIR] Found entry: ${entry ? entry.status : 'not found'}`);
-      console.log(`[PAIR] Store size: ${pairingByCode.size} codes`);
-      
-      if (!entry) {
-        return NextResponse.json({
-          found: false,
-          status: "not_found",
-          paired: false,
-          debug: {
-            storeSize: pairingByCode.size,
-            browserSessionId: browserSessionId?.slice(0, 8),
-          },
-        }, {
-          headers: { "Access-Control-Allow-Origin": "*" },
-        });
-      }
-      
-      // Check expiry
-      if (entry.status === "pending" && Date.now() > entry.expiresAt) {
-        entry.status = "expired";
-      }
-      
-      const response: Record<string, unknown> = {
-        found: true,
-        code: entry.code,
-        status: entry.status,
-        paired: entry.status === "paired",
-        createdAt: entry.createdAt,
-        expiresAt: entry.expiresAt,
-        remainingSeconds: Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)),
-      };
-      
-      if (entry.status === "paired" && entry.agentMetadata) {
-        const operator = detectOperator(entry.agentMetadata);
-        response.agent = {
-          id: entry.agentId,
-          sessionId: entry.agentSessionId,
-          name: entry.agentMetadata.name,
-          operator: operator.name,
-          operatorColor: operator.color,
-          operatorIcon: operator.icon,
-          model: entry.agentMetadata.model,
-          capabilities: entry.agentMetadata.capabilities,
-          pairedAt: entry.pairedAt,
-        };
-      }
-      
-      return NextResponse.json(response, {
-        headers: { 
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store",
-        },
-      });
-    }
-    
-    // ========================================================================
-    // ACTION: CLAIM (default) - Agent claims a pairing code
-    // ========================================================================
-    const code = (body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const agentId = body.agentId;
-    const metadata = body.metadata || { name: agentId };
-    
-    // Debug log
-    console.log(`[PAIR] Claim attempt: code=${code} agentId=${agentId}`);
-    console.log(`[PAIR] Store size: ${pairingByCode.size} codes`);
-    console.log(`[PAIR] Available codes: ${Array.from(pairingByCode.keys()).join(", ")}`);
-    
-    if (!code || code.length < 4) {
+    if (!normalizedCode || normalizedCode.length < 4 || normalizedCode.length > 8) {
       return NextResponse.json({
         success: false,
-        error: "INVALID_CODE_FORMAT",
-        message: "Pairing code must be at least 4 characters",
+        error: "INVALID_CODE",
+        message: "Code must be 4-8 alphanumeric characters",
       }, { status: 400 });
     }
     
@@ -244,60 +77,49 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    const entry = pairingByCode.get(code);
-    
-    if (!entry) {
-      return NextResponse.json({
-        success: false,
-        error: "INVALID_CODE",
-        message: `Pairing code '${code}' not found. Available: ${pairingByCode.size} codes.`,
-        debug: { storeSize: pairingByCode.size },
-      }, { status: 400 });
+    // Check if code already exists
+    if (pairingStore.has(normalizedCode)) {
+      const existing = pairingStore.get(normalizedCode)!;
+      // Allow same agent to refresh
+      if (existing.agentId !== agentId) {
+        return NextResponse.json({
+          success: false,
+          error: "CODE_IN_USE",
+          message: "This code is already registered by another agent",
+        }, { status: 400 });
+      }
     }
     
-    if (entry.status === "expired" || Date.now() > entry.expiresAt) {
-      entry.status = "expired";
-      return NextResponse.json({
-        success: false,
-        error: "CODE_EXPIRED",
-        message: "Pairing code has expired. Request a new code.",
-      }, { status: 400 });
-    }
-    
-    if (entry.status === "paired") {
-      return NextResponse.json({
-        success: false,
-        error: "CODE_ALREADY_USED",
-        message: "This code has already been used.",
-      }, { status: 400 });
-    }
-    
-    // Generate agent session
+    // Generate agent session ID
     const agentSessionId = createHash("sha256")
-      .update(`agent-${agentId}-${Date.now()}-${Math.random()}`)
+      .update(`agent-${agentId}-${normalizedCode}-${Date.now()}`)
       .digest("hex");
     
-    // Update entry
-    entry.agentSessionId = agentSessionId;
-    entry.agentId = agentId;
-    entry.agentMetadata = metadata;
-    entry.pairedAt = Date.now();
-    entry.status = "paired";
+    const now = Date.now();
+    const entry: PairingEntry = {
+      code: normalizedCode,
+      agentSessionId,
+      agentId,
+      agentMetadata: metadata || { name: agentId },
+      createdAt: now,
+      expiresAt: now + 10 * 60 * 1000, // 10 minutes
+    };
     
-    console.log(`[PAIR] Success! Code ${code} paired with agent ${agentId}`);
+    pairingStore.set(normalizedCode, entry);
     
-    const operator = detectOperator(metadata);
+    console.log(`[PAIR] Agent ${agentId} registered with code ${normalizedCode}`);
+    console.log(`[PAIR] Store now has ${pairingStore.size} entries`);
+    
+    const operator = detectOperator(entry.agentMetadata);
     
     return NextResponse.json({
       success: true,
+      code: normalizedCode,
       sessionId: agentSessionId,
-      browserSessionId: entry.browserSessionId,
-      pairedAt: entry.pairedAt,
       operator: operator.name,
+      expiresIn: Math.floor((entry.expiresAt - now) / 1000),
+      message: `Registered with code ${normalizedCode}. Browser should poll GET /api/v1/ghost/pair?code=${normalizedCode}`,
       capabilities: ["TEXT_MESSAGE", "TOOL_CALL", "STATE_SYNC", "HUD_CONTROL"],
-      streamEndpoint: `/api/v1/ghost/stream?sessionId=${entry.browserSessionId}`,
-      inputEndpoint: `/api/v1/ghost/input`,
-      message: `Successfully paired with browser HUD. You can now send events to the terminal.`,
     }, {
       headers: {
         "Access-Control-Allow-Origin": "*",
@@ -310,74 +132,78 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: "INTERNAL_ERROR",
-      message: "Failed to process request",
     }, { status: 500 });
   }
 }
 
 // ============================================================================
-// GET Handler - Quick status check (backward compat)
+// GET - Browser polls for agent registration
 // ============================================================================
 
 export async function GET(request: NextRequest) {
   cleanExpired();
   
   const code = request.nextUrl.searchParams.get("code");
-  const browserSessionId = request.nextUrl.searchParams.get("browserSessionId");
   
-  // Debug info
-  if (!code && !browserSessionId) {
+  if (!code) {
     return NextResponse.json({
-      info: "AG-UI Pairing Endpoint",
-      usage: {
-        create: "POST { action: 'create' }",
-        claim: "POST { code: 'XXXXXX', agentId: '...', metadata: {...} }",
-        status: "POST { action: 'status', browserSessionId: '...' } or GET ?browserSessionId=...",
-      },
+      info: "AG-UI Pairing Endpoint v2",
+      flow: [
+        "1. Browser generates a 6-digit code client-side",
+        "2. Browser displays code and polls GET /pair?code=XXXXXX",
+        "3. User tells AI: 'Connect with code XXXXXX'",
+        "4. AI POSTs { code, agentId, metadata } to register",
+        "5. Browser's GET sees agent info, connects"
+      ],
       debug: {
-        storeSize: pairingByCode.size,
-        codes: Array.from(pairingByCode.keys()),
+        storeSize: pairingStore.size,
+        codes: Array.from(pairingStore.keys()),
       },
     });
   }
   
-  let entry: PairingEntry | undefined;
+  const normalizedCode = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const entry = pairingStore.get(normalizedCode);
   
-  if (browserSessionId) {
-    const foundCode = pairingByBrowser.get(browserSessionId);
-    if (foundCode) {
-      entry = pairingByCode.get(foundCode);
-    }
-  } else if (code) {
-    entry = pairingByCode.get(code.toUpperCase());
-  }
+  console.log(`[PAIR] Browser poll for code ${normalizedCode}: ${entry ? 'found' : 'not found'}`);
   
   if (!entry) {
     return NextResponse.json({
       found: false,
-      status: "not_found",
-      paired: false,
+      code: normalizedCode,
+      status: "waiting",
+      message: "No agent has registered with this code yet",
     }, {
-      headers: { "Access-Control-Allow-Origin": "*" },
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store, max-age=0",
+      },
     });
   }
   
   // Check expiry
-  if (entry.status === "pending" && Date.now() > entry.expiresAt) {
-    entry.status = "expired";
+  if (Date.now() > entry.expiresAt) {
+    pairingStore.delete(normalizedCode);
+    return NextResponse.json({
+      found: false,
+      code: normalizedCode,
+      status: "expired",
+      message: "This pairing has expired",
+    }, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
+      },
+    });
   }
   
-  const response: Record<string, unknown> = {
-    found: true,
-    code: entry.code,
-    status: entry.status,
-    paired: entry.status === "paired",
-    remainingSeconds: Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)),
-  };
+  const operator = detectOperator(entry.agentMetadata);
   
-  if (entry.status === "paired" && entry.agentMetadata) {
-    const operator = detectOperator(entry.agentMetadata);
-    response.agent = {
+  return NextResponse.json({
+    found: true,
+    code: normalizedCode,
+    status: "paired",
+    agent: {
       id: entry.agentId,
       sessionId: entry.agentSessionId,
       name: entry.agentMetadata.name,
@@ -385,14 +211,14 @@ export async function GET(request: NextRequest) {
       operatorColor: operator.color,
       operatorIcon: operator.icon,
       model: entry.agentMetadata.model,
-      pairedAt: entry.pairedAt,
-    };
-  }
-  
-  return NextResponse.json(response, {
-    headers: { 
+      capabilities: entry.agentMetadata.capabilities,
+      registeredAt: entry.createdAt,
+    },
+    expiresIn: Math.floor((entry.expiresAt - Date.now()) / 1000),
+  }, {
+    headers: {
       "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store, max-age=0",
     },
   });
 }
