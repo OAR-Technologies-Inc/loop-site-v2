@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Terminal, Cpu, Check, AlertCircle, Zap, ChevronRight } from "lucide-react";
+import { X, Terminal, Cpu, Check, Copy, Zap, ChevronRight, Radio, MessageSquare, Search, Shield } from "lucide-react";
 
 interface LogEntry {
   id: number;
   text: string;
-  type: "info" | "success" | "warning" | "command";
+  type: "info" | "success" | "warning" | "command" | "active";
   timestamp: string;
 }
 
@@ -15,6 +15,8 @@ interface AgentHUDProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+type HUDState = "initializing" | "scanning" | "active";
 
 const INIT_SEQUENCE: Omit<LogEntry, "id" | "timestamp">[] = [
   { text: "> INITIALIZING_HANDSHAKE...", type: "command" },
@@ -33,19 +35,44 @@ const INIT_SEQUENCE: Omit<LogEntry, "id" | "timestamp">[] = [
   { text: "  CRED: HYQJwCJ5wH9o4sb9sVP...aBaG", type: "info" },
   { text: "  VAULT: J8HhLeRv5iQaSyYQBXJ...SWQT", type: "info" },
   { text: "  SHOPPING: HiewKEBy6YVn3Xi5xd...teXJ", type: "info" },
-  { text: "> STATUS: STANDING_BY_FOR_USER_AGENT", type: "warning" },
-  { text: "  Awaiting external agent connection...", type: "info" },
+  { text: "> STATUS: SCANNING_FOR_AGENT...", type: "warning" },
+];
+
+const ACTIVATION_SEQUENCE: Omit<LogEntry, "id" | "timestamp">[] = [
+  { text: "> EXTERNAL_AGENT_TIMEOUT", type: "info" },
+  { text: "  No external agent detected", type: "info" },
+  { text: "> ACTIVATING_LOOP_GENESIS_REP...", type: "command" },
+  { text: "  Loading system intelligence", type: "info" },
+  { text: "  Capabilities: Protocol Guide, Market Scan, Security Audit", type: "success" },
+  { text: "> ACTIVE_SESSION: LOOP_GENESIS_REP", type: "active" },
+];
+
+const SUGGESTED_ACTIONS = [
+  { id: "01", label: "Explain Loop Protocol", icon: MessageSquare, description: "Learn how value capture works" },
+  { id: "02", label: "Scan Marketplace for Alpha", icon: Search, description: "Find high-performing agents" },
+  { id: "03", label: "Check Vault Security", icon: Shield, description: "Audit your vault policy" },
 ];
 
 export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [hudState, setHudState] = useState<HUDState>("initializing");
+  const [nonce, setNonce] = useState<string>("");
+  const [copied, setCopied] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const sequenceIndex = useRef(0);
+  const activationTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Generate nonce on open
+  useEffect(() => {
+    if (isOpen) {
+      const newNonce = generateNonce();
+      setNonce(newNonce);
+    }
+  }, [isOpen]);
 
   // Run initialization sequence when opened
   useEffect(() => {
-    if (isOpen && !isInitialized) {
+    if (isOpen && hudState === "initializing") {
       sequenceIndex.current = 0;
       setLogs([]);
       
@@ -64,18 +91,59 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
           
           sequenceIndex.current++;
           
-          // Variable delay for dramatic effect
           const delay = entry.type === "command" ? 400 : 
                        entry.type === "success" ? 200 : 150;
           setTimeout(runSequence, delay);
         } else {
-          setIsInitialized(true);
+          // Move to scanning state
+          setHudState("scanning");
+          
+          // Set timeout for auto-activation
+          activationTimeout.current = setTimeout(() => {
+            runActivationSequence();
+          }, 2000);
         }
       };
       
       setTimeout(runSequence, 500);
     }
-  }, [isOpen, isInitialized]);
+    
+    return () => {
+      if (activationTimeout.current) {
+        clearTimeout(activationTimeout.current);
+      }
+    };
+  }, [isOpen, hudState]);
+
+  // Run activation sequence
+  const runActivationSequence = useCallback(() => {
+    let index = 0;
+    
+    const runNext = () => {
+      if (index < ACTIVATION_SEQUENCE.length) {
+        const entry = ACTIVATION_SEQUENCE[index];
+        const now = new Date();
+        const timestamp = now.toISOString().slice(11, 19);
+        
+        setLogs(prev => [...prev, {
+          id: Date.now() + index,
+          text: entry.text,
+          type: entry.type,
+          timestamp,
+        }]);
+        
+        index++;
+        
+        const delay = entry.type === "command" ? 400 : 
+                     entry.type === "active" ? 500 : 150;
+        setTimeout(runNext, delay);
+      } else {
+        setHudState("active");
+      }
+    };
+    
+    runNext();
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -87,7 +155,12 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   // Reset on close
   useEffect(() => {
     if (!isOpen) {
-      setIsInitialized(false);
+      setHudState("initializing");
+      setLogs([]);
+      sequenceIndex.current = 0;
+      if (activationTimeout.current) {
+        clearTimeout(activationTimeout.current);
+      }
     }
   }, [isOpen]);
 
@@ -98,6 +171,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
         detail: {
           manifest: "/llms.txt",
           version: "1.0.0",
+          nonce,
           capabilities: ["createVault", "registerAgent", "getVaultStats", "stakeAgent"],
           programs: {
             CRED: "HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG",
@@ -107,7 +181,29 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
         }
       }));
     }
-  }, [isOpen]);
+  }, [isOpen, nonce]);
+
+  // Copy handshake JSON
+  const copyHandshakeId = useCallback(() => {
+    const handshakeJson = JSON.stringify({
+      protocol: "loop",
+      version: "1.0.0",
+      nonce,
+      manifest: "https://loop-site-v2.vercel.app/llms.txt",
+      endpoint: "https://loop-site-v2.vercel.app/api/agent/handshake",
+      challenge: `Sign this nonce to authenticate: ${nonce}`,
+      programs: {
+        CRED: "HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG",
+        VAULT: "J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT",
+        SHOPPING: "HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ",
+      },
+      instructions: "Paste this into your AI agent to connect to Loop Protocol. The agent should sign the nonce and POST to the endpoint."
+    }, null, 2);
+    
+    navigator.clipboard.writeText(handshakeJson);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [nonce]);
 
   return (
     <AnimatePresence>
@@ -148,27 +244,52 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
               </button>
             </div>
 
-            {/* Status Bar */}
-            <div className="flex items-center gap-4 px-4 py-2 bg-zinc-900/50 border-b border-white/5">
-              <div className="flex items-center gap-2">
+            {/* Status Bar with Scanning Animation */}
+            <div className="relative flex items-center gap-4 px-4 py-2 bg-zinc-900/50 border-b border-white/5 overflow-hidden">
+              {/* Sonar Pulse Animation */}
+              {hudState === "scanning" && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/10 to-transparent"
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                />
+              )}
+              
+              <div className="flex items-center gap-2 relative z-10">
                 <motion.span
-                  className={`w-1.5 h-1.5 rounded-full ${isInitialized ? "bg-accent" : "bg-warning"}`}
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    hudState === "active" ? "bg-accent" : 
+                    hudState === "scanning" ? "bg-yellow-400" : "bg-zinc-600"
+                  }`}
                   animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity }}
+                  transition={{ duration: hudState === "scanning" ? 0.5 : 1, repeat: Infinity }}
                 />
                 <span className="text-[9px] font-mono text-zinc-500 uppercase">
-                  {isInitialized ? "READY" : "INIT"}
+                  {hudState === "active" ? "ACTIVE" : hudState === "scanning" ? "SCANNING" : "INIT"}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              
+              {hudState === "scanning" && (
+                <div className="flex items-center gap-2 relative z-10">
+                  <Radio size={10} strokeWidth={1.5} className="text-yellow-400" />
+                  <span className="text-[9px] font-mono text-yellow-400">
+                    LISTENING...
+                  </span>
+                </div>
+              )}
+              
+              {hudState === "active" && (
+                <div className="flex items-center gap-2 relative z-10">
+                  <span className="text-[9px] font-mono text-accent">
+                    LOOP_GENESIS_REP
+                  </span>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 ml-auto relative z-10">
                 <Zap size={10} strokeWidth={1.5} className="text-zinc-600" />
                 <span className="text-[9px] font-mono text-zinc-500">
                   SDK v1.0.0
-                </span>
-              </div>
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-[9px] font-mono text-zinc-600">
-                  MAINNET
                 </span>
               </div>
             </div>
@@ -199,7 +320,7 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
                 ))}
                 
                 {/* Cursor */}
-                {!isInitialized && (
+                {hudState !== "active" && (
                   <motion.span
                     className="inline-block w-2 h-4 bg-accent"
                     animate={{ opacity: [1, 0, 1] }}
@@ -209,47 +330,105 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
               </div>
             </div>
 
-            {/* Action Panel */}
-            <div className="p-4 border-t border-white/5 space-y-3">
-              <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-2">
-                [AGENT_ACTIONS]
+            {/* Suggested Actions (Active State Only) */}
+            <AnimatePresence>
+              {hudState === "active" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="border-t border-white/5"
+                >
+                  <div className="p-4 space-y-2">
+                    <div className="text-[8px] font-mono text-accent uppercase tracking-wider mb-3">
+                      [SUGGESTED_ACTIONS]
+                    </div>
+                    
+                    {SUGGESTED_ACTIONS.map((action) => {
+                      const Icon = action.icon;
+                      return (
+                        <motion.button
+                          key={action.id}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded border border-white/5 bg-white/[0.02] hover:border-accent/30 hover:bg-accent/5 transition-all group"
+                          whileHover={{ x: 4 }}
+                        >
+                          <div className="w-6 h-6 rounded bg-zinc-800/50 flex items-center justify-center flex-shrink-0">
+                            <Icon size={12} strokeWidth={1.2} className="text-zinc-500 group-hover:text-accent transition-colors" />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className="text-[10px] font-mono text-zinc-300 group-hover:text-accent transition-colors">
+                              [{action.id}] {action.label}
+                            </div>
+                            <div className="text-[9px] text-zinc-600">
+                              {action.description}
+                            </div>
+                          </div>
+                          <ChevronRight size={12} strokeWidth={1.5} className="text-zinc-700 group-hover:text-accent transition-colors" />
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Action Panel (Non-Active State) */}
+            {hudState !== "active" && (
+              <div className="p-4 border-t border-white/5 space-y-3">
+                <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider mb-2">
+                  [AGENT_ACTIONS]
+                </div>
+                
+                <button
+                  disabled={hudState !== "scanning"}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <span>Authorize Agent</span>
+                  <ChevronRight size={12} strokeWidth={1.5} />
+                </button>
+
+                <button
+                  disabled={hudState !== "scanning"}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <span>Execute Transaction</span>
+                  <ChevronRight size={12} strokeWidth={1.5} />
+                </button>
+              </div>
+            )}
+
+            {/* Footer with Manual Connect */}
+            <div className="px-4 py-3 border-t border-white/5 bg-zinc-900/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[8px] font-mono text-zinc-700 uppercase">
+                  NONCE: {nonce.slice(0, 8)}...
+                </span>
+                <span className="text-[8px] font-mono text-zinc-700">
+                  loop:handshake
+                </span>
               </div>
               
+              {/* Copy Handshake ID */}
               <button
-                disabled={!isInitialized}
-                className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={copyHandshakeId}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded border border-dashed border-zinc-800 hover:border-accent/30 hover:bg-accent/5 transition-all group"
               >
-                <span>Authorize Agent</span>
-                <ChevronRight size={12} strokeWidth={1.5} />
+                {copied ? (
+                  <>
+                    <Check size={12} strokeWidth={1.5} className="text-accent" />
+                    <span className="text-[9px] font-mono text-accent uppercase tracking-wider">
+                      COPIED_TO_CLIPBOARD
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={12} strokeWidth={1.5} className="text-zinc-600 group-hover:text-accent transition-colors" />
+                    <span className="text-[9px] font-mono text-zinc-600 group-hover:text-accent uppercase tracking-wider transition-colors">
+                      COPY_HANDSHAKE_ID
+                    </span>
+                  </>
+                )}
               </button>
-
-              <button
-                disabled={!isInitialized}
-                className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <span>Execute Transaction</span>
-                <ChevronRight size={12} strokeWidth={1.5} />
-              </button>
-
-              <button
-                disabled={!isInitialized}
-                className="w-full flex items-center justify-between px-3 py-2 rounded border border-white/10 bg-white/5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <span>Query Protocol State</span>
-                <ChevronRight size={12} strokeWidth={1.5} />
-              </button>
-            </div>
-
-            {/* Footer */}
-            <div className="px-4 py-2 border-t border-white/5 bg-zinc-900/30">
-              <div className="flex items-center justify-between">
-                <span className="text-[8px] font-mono text-zinc-700">
-                  BYOA_INTERFACE
-                </span>
-                <span className="text-[8px] font-mono text-zinc-700">
-                  loop:handshake dispatched
-                </span>
-              </div>
             </div>
           </motion.div>
         </>
@@ -266,7 +445,22 @@ function getLogColor(type: LogEntry["type"]): string {
       return "text-green-400";
     case "warning":
       return "text-yellow-400";
+    case "active":
+      return "text-accent font-bold";
     default:
       return "text-zinc-500";
   }
+}
+
+function generateNonce(): string {
+  const array = new Uint8Array(16);
+  if (typeof window !== "undefined" && window.crypto) {
+    window.crypto.getRandomValues(array);
+  } else {
+    // Fallback for SSR
+    for (let i = 0; i < 16; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
