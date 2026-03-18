@@ -5,3 +5,4 @@ export { Metric, MetricRow } from "./Metric";
 export { C2Nav } from "./C2Nav";
 export { SystemTicker } from "./SystemTicker";
 export { GridBackground } from "./GridBackground";
+export { AgentHUD } from "./AgentHUD";
