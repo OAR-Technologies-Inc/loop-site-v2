@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C2Nav, BentoCard, BentoGrid } from "@/components/ui";
+import { Terminal, FileCode, Database, Coins, TrendingUp, Bot, Network, Copy, Check } from "lucide-react";
 
 const SECTIONS = [
   { id: "installation", label: "Installation" },
@@ -11,7 +12,6 @@ const SECTIONS = [
   { id: "cred", label: "Cred Token" },
   { id: "stacking", label: "Stacking" },
   { id: "agents", label: "Service Agents" },
-  { id: "bonding-curves", label: "Bonding Curves" },
   { id: "program-ids", label: "Program IDs" },
 ];
 
@@ -27,7 +27,10 @@ export default function DocsPage() {
           {/* Sidebar */}
           <aside className="w-56 flex-shrink-0 hidden lg:block">
             <nav className="sticky top-24 space-y-1">
-              <span className="label block mb-4">Documentation</span>
+              <div className="flex items-center gap-2 mb-4">
+                <FileCode size={14} strokeWidth={1.2} className="text-zinc-500" />
+                <span className="label">Documentation</span>
+              </div>
               {SECTIONS.map((section) => (
                 <a
                   key={section.id}
@@ -35,7 +38,7 @@ export default function DocsPage() {
                   onClick={() => setActiveSection(section.id)}
                   className={`block px-3 py-2 text-sm font-mono transition-colors rounded ${
                     activeSection === section.id
-                      ? "text-accent bg-white/5"
+                      ? "text-accent bg-white/5 border-l-2 border-accent"
                       : "text-text-muted hover:text-text-primary"
                   }`}
                 >
@@ -58,7 +61,7 @@ export default function DocsPage() {
             </div>
 
             {/* Installation */}
-            <Section id="installation" title="Installation">
+            <Section id="installation" title="Installation" icon={Terminal}>
               <CodeBlock language="bash">
 {`npm install @loop-protocol/sdk
 # or
@@ -69,10 +72,9 @@ pnpm add @loop-protocol/sdk`}
             </Section>
 
             {/* Quick Start */}
-            <Section id="quickstart" title="Quick Start">
+            <Section id="quickstart" title="Quick Start" icon={Terminal}>
               <p className="text-text-secondary mb-4">
-                Get started with Loop Protocol in under 5 minutes. Connect, wrap USDC to Cred, 
-                and start stacking for yield.
+                Connect, wrap USDC to Cred, and start stacking for yield.
               </p>
 
               <CodeBlock language="typescript">
@@ -105,15 +107,11 @@ console.log("APY:", position.currentApy);`}
             </Section>
 
             {/* Configuration */}
-            <Section id="configuration" title="Configuration">
-              <p className="text-text-secondary mb-4">
-                Configure the SDK for different environments.
-              </p>
-
+            <Section id="configuration" title="Configuration" icon={Network}>
               <BentoGrid className="gap-4 mb-6">
                 <BentoCard className="col-span-6" spotlight={false}>
-                  <span className="label mb-2 block">Mainnet</span>
-                  <CodeBlock language="typescript">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-3">[MAINNET]</span>
+                  <CodeBlock language="typescript" compact>
 {`const loop = new Loop({
   connection,
   wallet,
@@ -122,8 +120,8 @@ console.log("APY:", position.currentApy);`}
                   </CodeBlock>
                 </BentoCard>
                 <BentoCard className="col-span-6" spotlight={false}>
-                  <span className="label mb-2 block">Devnet</span>
-                  <CodeBlock language="typescript">
+                  <span className="text-[8px] font-mono text-zinc-500 uppercase block mb-3">[DEVNET]</span>
+                  <CodeBlock language="typescript" compact>
 {`const loop = new Loop({
   connection,
   wallet,
@@ -135,9 +133,9 @@ console.log("APY:", position.currentApy);`}
             </Section>
 
             {/* Vaults */}
-            <Section id="vaults" title="Vaults">
+            <Section id="vaults" title="Vaults" icon={Database}>
               <p className="text-text-secondary mb-4">
-                Vaults are the core primitive for value custody. Each user has a personal vault 
+                Core primitive for value custody. Each user has a personal vault 
                 managed by their agent within on-chain policy constraints.
               </p>
 
@@ -149,7 +147,7 @@ const initTx = await loop.vault.initialize({
   policy: {
     dailyLimit: 1000_000_000, // 1000 Cred
     autoStack: true,
-    requireUserAbove: 500_000_000, // Require user sig above 500
+    requireUserAbove: 500_000_000,
   },
 });
 
@@ -162,10 +160,9 @@ console.log("Agent:", vault.agent);`}
             </Section>
 
             {/* Cred Token */}
-            <Section id="cred" title="Cred Token">
+            <Section id="cred" title="Cred Token" icon={Coins}>
               <p className="text-text-secondary mb-4">
-                Cred is the protocol's stable unit of account, backed 1:1 by USDC. 
-                Wrap and unwrap freely.
+                Protocol's stable unit of account, backed 1:1 by USDC.
               </p>
 
               <CodeBlock language="typescript">
@@ -186,9 +183,9 @@ const balance = await loop.cred.getBalance(wallet.publicKey);`}
             </Section>
 
             {/* Stacking */}
-            <Section id="stacking" title="Stacking">
+            <Section id="stacking" title="Stacking" icon={TrendingUp}>
               <p className="text-text-secondary mb-4">
-                Stack Cred to earn yield from protocol fees. Longer lock periods earn higher APY.
+                Stack Cred to earn yield from protocol fees. Longer lock periods = higher APY.
               </p>
 
               <CodeBlock language="typescript">
@@ -218,9 +215,9 @@ console.log({
             </Section>
 
             {/* Service Agents */}
-            <Section id="agents" title="Service Agents">
+            <Section id="agents" title="Service Agents" icon={Bot}>
               <p className="text-text-secondary mb-4">
-                Register agents with bonding curve tokens. Agent tokens appreciate as adoption grows.
+                Register agents with bonding curve tokens.
               </p>
 
               <CodeBlock language="typescript">
@@ -244,94 +241,76 @@ console.log("Subscribers:", agent.subscriberCount);
 const subscribeTx = await loop.agents.subscribe({
   agent: agentPublicKey,
   vault: vaultAddress,
+});
+
+// Buy agent tokens (bonding curve)
+const buyTx = await loop.agents.buyTokens({
+  agent: agentPublicKey,
+  amount: 100,
+  maxPrice: 1_500_000, // Slippage protection
 });`}
               </CodeBlock>
             </Section>
 
-            {/* Bonding Curves */}
-            <Section id="bonding-curves" title="Bonding Curves">
-              <p className="text-text-secondary mb-4">
-                Agent tokens follow a bonding curve — price increases with supply. 
-                Early adopters benefit from appreciation.
-              </p>
-
-              <CodeBlock language="typescript">
-{`// Buy agent tokens
-const buyTx = await loop.agents.buyTokens({
-  agent: agentPublicKey,
-  amount: 100, // Buy 100 tokens
-  maxPrice: 1_500_000, // Slippage protection (1.5 USDC max)
-});
-
-// Sell agent tokens
-const sellTx = await loop.agents.sellTokens({
-  agent: agentPublicKey,
-  amount: 50,
-  minPrice: 1_200_000, // Minimum 1.2 USDC per token
-});
-
-// Get price quote
-const quote = await loop.agents.getQuote({
-  agent: agentPublicKey,
-  amount: 100,
-  side: "buy",
-});
-console.log("Price per token:", quote.pricePerToken);
-console.log("Total cost:", quote.totalCost);`}
-              </CodeBlock>
-            </Section>
-
             {/* Program IDs */}
-            <Section id="program-ids" title="Program IDs">
+            <Section id="program-ids" title="Program IDs" icon={Network}>
               <p className="text-text-secondary mb-4">
                 Deployed program addresses on Solana mainnet.
               </p>
 
-              <div className="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Program</th>
-                      <th>Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="text-accent">CRED</td>
-                      <td className="font-mono text-xs">HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG</td>
-                    </tr>
-                    <tr>
-                      <td className="text-accent">VAULT</td>
-                      <td className="font-mono text-xs">J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT</td>
-                    </tr>
-                    <tr>
-                      <td className="text-accent">SHOPPING</td>
-                      <td className="font-mono text-xs">HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ</td>
-                    </tr>
-                    <tr>
-                      <td className="text-accent">Cred Mint</td>
-                      <td className="font-mono text-xs">9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <BentoCard spotlight={false}>
+                <div className="bg-black/40 border border-white/5 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-white/5">
+                        <th className="text-left p-4 text-zinc-500 uppercase">Program</th>
+                        <th className="text-left p-4 text-zinc-500 uppercase">Address</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-zinc-400">
+                      <tr className="border-b border-white/5">
+                        <td className="p-4 text-accent">CRED</td>
+                        <td className="p-4">HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG</td>
+                      </tr>
+                      <tr className="border-b border-white/5">
+                        <td className="p-4 text-accent">VAULT</td>
+                        <td className="p-4">J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT</td>
+                      </tr>
+                      <tr className="border-b border-white/5">
+                        <td className="p-4 text-accent">SHOPPING</td>
+                        <td className="p-4">HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ</td>
+                      </tr>
+                      <tr>
+                        <td className="p-4 text-accent">Cred Mint</td>
+                        <td className="p-4">9GQMCAK3MpZF1hEbwqA9d4mRGtippGV9hyr8fxmz6eA</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </BentoCard>
             </Section>
 
             {/* Footer */}
             <div className="mt-16 pt-8 border-t border-white/5">
               <BentoGrid className="gap-4">
                 <BentoCard className="col-span-6" spotlight={false}>
-                  <span className="label mb-2 block">GitHub</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Network size={14} strokeWidth={1.2} className="text-zinc-500" />
+                    <span className="label">Source</span>
+                  </div>
                   <a 
                     href="https://github.com/OAR-Technologies-Inc/loop-protocol" 
                     target="_blank"
                     className="text-accent font-mono text-sm hover:underline"
                   >
-                    OAR-Technologies-Inc/loop-protocol →
+                    github.com/OAR-Technologies-Inc/loop-protocol →
                   </a>
                 </BentoCard>
                 <BentoCard className="col-span-6" spotlight={false}>
-                  <span className="label mb-2 block">Support</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Terminal size={14} strokeWidth={1.2} className="text-zinc-500" />
+                    <span className="label">Support</span>
+                  </div>
                   <a 
                     href="mailto:dev@looplocal.io"
                     className="text-accent font-mono text-sm hover:underline"
@@ -348,22 +327,68 @@ console.log("Total cost:", quote.totalCost);`}
   );
 }
 
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Section({ 
+  id, 
+  title, 
+  icon: Icon, 
+  children 
+}: { 
+  id: string; 
+  title: string; 
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) {
   return (
     <section id={id} className="mb-12 scroll-mt-24">
-      <h2 className="heading-lg mb-4">{title}</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon size={14} strokeWidth={1.2} className="text-zinc-500" />
+        <h2 className="heading-lg">{title}</h2>
+      </div>
       {children}
     </section>
   );
 }
 
-function CodeBlock({ children, language = "typescript" }: { children: string; language?: string }) {
+function CodeBlock({ 
+  children, 
+  language = "typescript",
+  compact = false,
+}: { 
+  children: string; 
+  language?: string;
+  compact?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(children);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="relative">
-      <span className="absolute top-3 right-3 label text-[9px]">{language}</span>
-      <pre className="bg-black/40 border border-white/10 rounded-lg p-4 overflow-x-auto">
-        <code className="text-sm font-mono text-text-secondary">{children}</code>
-      </pre>
+    <div className="relative group">
+      <div className={`
+        bg-zinc-900/50 backdrop-blur-xl border border-white/5 rounded-lg overflow-hidden
+        ${compact ? '' : 'mb-4'}
+      `}>
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
+          <span className="text-[8px] font-mono text-zinc-500 uppercase">{language}</span>
+          <button
+            onClick={handleCopy}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            {copied ? (
+              <Check size={14} strokeWidth={1.5} className="text-accent" />
+            ) : (
+              <Copy size={14} strokeWidth={1.5} />
+            )}
+          </button>
+        </div>
+        <pre className="p-4 overflow-x-auto">
+          <code className="text-sm font-mono text-zinc-400">{children}</code>
+        </pre>
+      </div>
     </div>
   );
 }
