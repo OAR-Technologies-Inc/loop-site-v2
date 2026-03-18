@@ -11,7 +11,7 @@ const footerLinks = {
   ],
   Developers: [
     { label: "Documentation", href: "https://docs.looplocal.io" },
-    { label: "GitHub", href: "https://github.com/southerncory/loop-protocol" },
+    { label: "GitHub", href: "https://github.com/OAR-Technologies-Inc/loop-protocol" },
     { label: "SDK", href: "https://docs.looplocal.io/sdk" },
     { label: "API Reference", href: "https://docs.looplocal.io/api" },
   ],

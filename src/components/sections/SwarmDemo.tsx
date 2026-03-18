@@ -304,7 +304,7 @@ export function SwarmDemo() {
         >
           This demo simulates our working elizaOS integration. 
           <a 
-            href="https://github.com/southerncory/loop-protocol/tree/master/eliza" 
+            href="https://github.com/OAR-Technologies-Inc/loop-protocol/tree/master/eliza" 
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-500 hover:text-emerald-400 ml-1"

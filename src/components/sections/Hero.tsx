@@ -58,7 +58,7 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-4 justify-center"
         >
-          <Button variant="primary" size="lg" href="https://github.com/southerncory/loop-protocol">
+          <Button variant="primary" size="lg" href="https://github.com/OAR-Technologies-Inc/loop-protocol">
             Start Building
           </Button>
           <Button variant="secondary" size="lg" href="/marketplace">

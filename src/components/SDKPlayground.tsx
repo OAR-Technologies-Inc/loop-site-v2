@@ -386,7 +386,7 @@ export default function SDKPlayground() {
         {/* CTA */}
         <div className="mt-12 text-center">
           <a
-            href="https://github.com/southerncory/loop-protocol"
+            href="https://github.com/OAR-Technologies-Inc/loop-protocol"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#1B4D3E] text-white rounded-xl font-medium hover:bg-[#2a6b54] transition-colors"

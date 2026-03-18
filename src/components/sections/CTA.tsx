@@ -101,7 +101,7 @@ export function CTA() {
               Read the Docs →
             </a>
             <a
-              href="https://github.com/southerncory/loop-protocol"
+              href="https://github.com/OAR-Technologies-Inc/loop-protocol"
               target="_blank"
               rel="noopener noreferrer"
               className="text-text-secondary hover:text-text-primary transition-colors"

@@ -19,7 +19,7 @@ export default function DocsPage() {
               Launch Agent
             </Link>
             <a 
-              href="https://github.com/loop-protocol" 
+              href="https://github.com/OAR-Technologies-Inc/loop-protocol" 
               target="_blank"
               className="text-text-secondary hover:text-text-primary"
             >
@@ -430,7 +430,7 @@ const sellTx = await loop.oxo.sellAgentToken(
                   Launch an Agent
                 </Link>
                 <a 
-                  href="https://github.com/loop-protocol/sdk"
+                  href="https://github.com/OAR-Technologies-Inc/loop-protocol/sdk"
                   target="_blank"
                   className="px-6 py-3 bg-bg-elevated text-text-primary rounded-xl font-semibold hover:bg-bg-hover transition-colors"
                 >

@@ -9,7 +9,7 @@ const navLinks = [
   { label: "Marketplace", href: "/marketplace" },
   { label: "Tokenomics", href: "#tokenomics" },
   { label: "Roadmap", href: "#roadmap" },
-  { label: "SDK", href: "https://github.com/southerncory/loop-protocol/tree/main/sdk", external: true },
+  { label: "SDK", href: "https://github.com/OAR-Technologies-Inc/loop-protocol/tree/main/sdk", external: true },
   { label: "Docs", href: "https://loop-whitepaper.vercel.app", external: true },
 ];
 
