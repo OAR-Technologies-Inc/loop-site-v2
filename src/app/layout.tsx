@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { WalletProvider } from "@/components/WalletProvider";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -56,7 +57,9 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-bg-base text-text-primary antialiased">
-        {children}
+        <WalletProvider>
+          {children}
+        </WalletProvider>
       </body>
     </html>
   );

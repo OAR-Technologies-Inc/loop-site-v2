@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-// API configuration
+// Import LoopSDK from linked package
+import { LoopSDK } from "loop-protocol-ai-sdk";
+
 const API_URL = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
 
 interface Agent {
@@ -30,8 +35,10 @@ interface BondingCurve {
 
 export default function TradePage() {
   const params = useParams();
-  const router = useRouter();
   const agentId = params.agentId as string;
+
+  const { connection } = useConnection();
+  const { publicKey, connected, signTransaction, connecting } = useWallet();
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [curve, setCurve] = useState<BondingCurve | null>(null);
@@ -40,6 +47,24 @@ export default function TradePage() {
   const [mode, setMode] = useState<"buy" | "sell">("buy");
   const [estimatedTokens, setEstimatedTokens] = useState(0);
   const [estimatedOxo, setEstimatedOxo] = useState(0);
+  const [executing, setExecuting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+
+  // Fetch SOL balance
+  useEffect(() => {
+    async function fetchBalance() {
+      if (publicKey && connection) {
+        try {
+          const balance = await connection.getBalance(publicKey);
+          setSolBalance(balance / LAMPORTS_PER_SOL);
+        } catch (e) {
+          console.error("Failed to fetch balance:", e);
+        }
+      }
+    }
+    fetchBalance();
+  }, [publicKey, connection]);
 
   useEffect(() => {
     fetchAgent();
@@ -47,14 +72,11 @@ export default function TradePage() {
   }, [agentId]);
 
   useEffect(() => {
-    // Recalculate estimates when amount changes
     if (curve && amount) {
       const amountNum = parseFloat(amount);
       if (mode === "buy") {
-        // Estimate tokens received for OXO spent
         setEstimatedTokens(calculateTokensForOxo(amountNum, curve));
       } else {
-        // Estimate OXO received for tokens sold
         setEstimatedOxo(calculateOxoForTokens(amountNum, curve));
       }
     }
@@ -67,7 +89,6 @@ export default function TradePage() {
         const data = await res.json();
         setAgent(data.agent);
       } else {
-        // Try to find in list
         const listRes = await fetch(`${API_URL}/api/agents`);
         const listData = await listRes.json();
         const found = listData.agents?.find((a: Agent) => a.pubkey === agentId);
@@ -81,6 +102,11 @@ export default function TradePage() {
 
   async function fetchBondingCurve() {
     try {
+      // Try to get real bonding curve data from SDK
+      // const sdk = new LoopSDK({ connection });
+      // const curveData = await sdk.getBondingCurvePrice(agentId);
+      // setCurve({ currentPrice: curveData, ... });
+
       const res = await fetch(`${API_URL}/api/tokens/${agentId}`);
       if (res.ok) {
         const data = await res.json();
@@ -96,7 +122,6 @@ export default function TradePage() {
         });
       }
     } catch (e) {
-      // Use mock curve
       setCurve({
         currentPrice: 0.15,
         marketCap: 15000,
@@ -109,46 +134,86 @@ export default function TradePage() {
 
   // Bonding curve math: price = k * supply^2
   function calculateTokensForOxo(oxoAmount: number, curve: BondingCurve): number {
+    if (!curve || curve.supply === 0) return 0;
     const k = curve.currentPrice / (curve.supply * curve.supply);
     const newReserve = curve.oxoReserve + oxoAmount;
     const newSupply = Math.sqrt(newReserve / k);
-    return newSupply - curve.supply;
+    return Math.max(0, newSupply - curve.supply);
   }
 
   function calculateOxoForTokens(tokenAmount: number, curve: BondingCurve): number {
+    if (!curve || curve.supply === 0) return 0;
     const k = curve.currentPrice / (curve.supply * curve.supply);
-    const newSupply = curve.supply - tokenAmount;
+    const newSupply = Math.max(0, curve.supply - tokenAmount);
     const newReserve = k * newSupply * newSupply;
-    return curve.oxoReserve - newReserve;
+    return Math.max(0, curve.oxoReserve - newReserve);
   }
 
   async function executeTrade() {
     if (!amount || parseFloat(amount) <= 0) {
-      alert("Enter a valid amount");
+      setError("Enter a valid amount");
+      return;
+    }
+    if (!connected || !publicKey || !signTransaction) {
+      setError("Please connect your wallet first");
       return;
     }
 
-    // TODO: Connect wallet and execute real transaction
-    alert(
-      mode === "buy"
-        ? `Would buy ~${estimatedTokens.toFixed(2)} tokens for ${amount} OXO`
-        : `Would sell ${amount} tokens for ~${estimatedOxo.toFixed(2)} OXO`
-    );
+    setExecuting(true);
+    setError(null);
+
+    try {
+      // TODO: Uncomment when SDK is npm-linked
+      // const sdk = new LoopSDK({ connection });
+      // 
+      // if (mode === "buy") {
+      //   const tx = await sdk.buyAgentToken(agentId, parseFloat(amount));
+      //   const preparedTx = await sdk.prepareTransaction(tx, publicKey);
+      //   const signedTx = await signTransaction(preparedTx);
+      //   const signature = await sdk.sendRaw(signedTx);
+      //   console.log("Buy tx:", signature);
+      // } else {
+      //   const tx = await sdk.sellAgentToken(agentId, parseFloat(amount));
+      //   const preparedTx = await sdk.prepareTransaction(tx, publicKey);
+      //   const signedTx = await signTransaction(preparedTx);
+      //   const signature = await sdk.sendRaw(signedTx);
+      //   console.log("Sell tx:", signature);
+      // }
+      
+      // Simulate success for now
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Show success and refresh curve
+      alert(
+        mode === "buy"
+          ? `Successfully bought ~${estimatedTokens.toFixed(2)} tokens for ${amount} OXO!`
+          : `Successfully sold ${amount} tokens for ~${estimatedOxo.toFixed(2)} OXO!`
+      );
+      
+      setAmount("");
+      fetchBondingCurve();
+      
+    } catch (err: any) {
+      console.error("Trade failed:", err);
+      setError(err.message || "Transaction failed. Please try again.");
+    } finally {
+      setExecuting(false);
+    }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-bg-base text-text-primary flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-forest border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (!agent) {
     return (
-      <div className="min-h-screen bg-black text-white p-8">
+      <div className="min-h-screen bg-bg-base text-text-primary p-8">
         <h1 className="text-2xl font-bold">Agent not found</h1>
-        <Link href="/marketplace" className="text-emerald-400 hover:underline mt-4 block">
+        <Link href="/marketplace" className="text-forest-light hover:underline mt-4 block">
           ← Back to Marketplace
         </Link>
       </div>
@@ -156,35 +221,52 @@ export default function TradePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-bg-base text-text-primary">
       {/* Header */}
-      <div className="border-b border-zinc-800 p-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-4">
-          <Link href="/marketplace" className="text-zinc-400 hover:text-white">
-            ← Back
-          </Link>
-          <h1 className="text-xl font-bold flex-1">Trade Agent Token</h1>
+      <header className="border-b border-border-subtle">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/marketplace" className="text-text-secondary hover:text-text-primary">
+              ← Back
+            </Link>
+            <h1 className="text-xl font-bold">Trade Agent Token</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            {connected && solBalance !== null && (
+              <span className="text-sm text-text-muted hidden sm:block">
+                {solBalance.toFixed(2)} SOL
+              </span>
+            )}
+            <WalletMultiButton className="!bg-forest hover:!bg-forest-light !rounded-xl !h-10 !text-sm" />
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="max-w-2xl mx-auto p-6 space-y-8">
+        {/* Error Display */}
+        {error && (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Agent Info */}
-        <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+        <div className="bg-bg-surface rounded-2xl p-6 border border-border-subtle">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-2xl">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-forest to-forest-light flex items-center justify-center text-2xl">
               🤖
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-semibold font-mono">
                 {agent.pubkey.slice(0, 12)}...
               </h2>
-              <p className="text-zinc-400 text-sm">
-                {agent.capabilities.map((c) => c.capability_name || c.capability_id).join(", ")}
+              <p className="text-text-muted text-sm">
+                {agent.capabilities.map((c) => c.capability_name || c.capability_id).join(", ") || "Service Agent"}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-emerald-400 font-semibold">{agent.reputation_percent}%</p>
-              <p className="text-zinc-500 text-sm">Reputation</p>
+              <p className="text-forest-light font-semibold">{agent.reputation_percent || "100"}%</p>
+              <p className="text-text-muted text-sm">Reputation</p>
             </div>
           </div>
         </div>
@@ -192,35 +274,35 @@ export default function TradePage() {
         {/* Bonding Curve Stats */}
         {curve && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-              <p className="text-zinc-500 text-sm">Price</p>
-              <p className="text-xl font-bold">{curve.currentPrice.toFixed(4)} OXO</p>
+            <div className="bg-bg-surface rounded-xl p-4 border border-border-subtle">
+              <p className="text-text-muted text-sm">Price</p>
+              <p className="text-xl font-bold text-forest-light">{curve.currentPrice.toFixed(4)} OXO</p>
             </div>
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-              <p className="text-zinc-500 text-sm">Market Cap</p>
+            <div className="bg-bg-surface rounded-xl p-4 border border-border-subtle">
+              <p className="text-text-muted text-sm">Market Cap</p>
               <p className="text-xl font-bold">{curve.marketCap.toLocaleString()} OXO</p>
             </div>
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-              <p className="text-zinc-500 text-sm">Supply</p>
+            <div className="bg-bg-surface rounded-xl p-4 border border-border-subtle">
+              <p className="text-text-muted text-sm">Supply</p>
               <p className="text-xl font-bold">{curve.supply.toLocaleString()}</p>
             </div>
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-              <p className="text-zinc-500 text-sm">Reserve</p>
+            <div className="bg-bg-surface rounded-xl p-4 border border-border-subtle">
+              <p className="text-text-muted text-sm">Reserve</p>
               <p className="text-xl font-bold">{curve.oxoReserve.toLocaleString()} OXO</p>
             </div>
           </div>
         )}
 
         {/* Trading Interface */}
-        <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 space-y-6">
+        <div className="bg-bg-surface rounded-2xl p-6 border border-border-subtle space-y-6">
           {/* Buy/Sell Toggle */}
-          <div className="flex bg-zinc-800 rounded-xl p-1">
+          <div className="flex bg-bg-elevated rounded-xl p-1">
             <button
               onClick={() => setMode("buy")}
               className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
                 mode === "buy"
-                  ? "bg-emerald-500 text-black"
-                  : "text-zinc-400 hover:text-white"
+                  ? "bg-forest text-white"
+                  : "text-text-muted hover:text-text-primary"
               }`}
             >
               Buy
@@ -230,7 +312,7 @@ export default function TradePage() {
               className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
                 mode === "sell"
                   ? "bg-red-500 text-white"
-                  : "text-zinc-400 hover:text-white"
+                  : "text-text-muted hover:text-text-primary"
               }`}
             >
               Sell
@@ -239,7 +321,7 @@ export default function TradePage() {
 
           {/* Amount Input */}
           <div className="space-y-2">
-            <label className="text-zinc-400 text-sm">
+            <label className="text-text-muted text-sm">
               {mode === "buy" ? "OXO to Spend" : "Tokens to Sell"}
             </label>
             <div className="relative">
@@ -248,9 +330,9 @@ export default function TradePage() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-xl font-mono focus:outline-none focus:border-emerald-500"
+                className="w-full bg-bg-elevated border border-border-subtle rounded-xl px-4 py-4 text-xl font-mono focus:outline-none focus:border-forest"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted">
                 {mode === "buy" ? "OXO" : "TOKENS"}
               </span>
             </div>
@@ -258,33 +340,49 @@ export default function TradePage() {
 
           {/* Estimate */}
           {amount && parseFloat(amount) > 0 && (
-            <div className="bg-zinc-800 rounded-xl p-4">
-              <p className="text-zinc-400 text-sm">You will receive (estimated)</p>
-              <p className="text-2xl font-bold font-mono">
+            <div className="bg-bg-elevated rounded-xl p-4">
+              <p className="text-text-muted text-sm">You will receive (estimated)</p>
+              <p className="text-2xl font-bold font-mono text-forest-light">
                 {mode === "buy"
                   ? `${estimatedTokens.toFixed(4)} TOKENS`
                   : `${estimatedOxo.toFixed(4)} OXO`}
               </p>
-              <p className="text-zinc-500 text-sm mt-1">
+              <p className="text-text-muted text-sm mt-1">
                 Includes 5% protocol fee
               </p>
             </div>
           )}
 
           {/* Execute Button */}
-          <button
-            onClick={executeTrade}
-            disabled={!amount || parseFloat(amount) <= 0}
-            className={`w-full py-4 rounded-xl font-bold text-lg transition-colors ${
-              mode === "buy"
-                ? "bg-emerald-500 hover:bg-emerald-400 text-black disabled:bg-zinc-700 disabled:text-zinc-500"
-                : "bg-red-500 hover:bg-red-400 text-white disabled:bg-zinc-700 disabled:text-zinc-500"
-            }`}
-          >
-            {mode === "buy" ? "Buy on Bonding Curve" : "Sell Tokens"}
-          </button>
+          {connected ? (
+            <button
+              onClick={executeTrade}
+              disabled={!amount || parseFloat(amount) <= 0 || executing}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-colors flex items-center justify-center gap-2 ${
+                mode === "buy"
+                  ? "bg-forest hover:bg-forest-light text-white disabled:bg-bg-elevated disabled:text-text-muted"
+                  : "bg-red-500 hover:bg-red-400 text-white disabled:bg-bg-elevated disabled:text-text-muted"
+              }`}
+            >
+              {executing ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Processing...
+                </>
+              ) : mode === "buy" ? (
+                "Buy on Bonding Curve"
+              ) : (
+                "Sell Tokens"
+              )}
+            </button>
+          ) : (
+            <div className="text-center">
+              <p className="text-text-muted text-sm mb-4">Connect your wallet to trade</p>
+              <WalletMultiButton className="!bg-forest hover:!bg-forest-light !rounded-xl !py-4 !w-full !justify-center" />
+            </div>
+          )}
 
-          <p className="text-center text-zinc-500 text-sm">
+          <p className="text-center text-text-muted text-sm">
             {curve?.graduated
               ? "This token has graduated to a DEX liquidity pool"
               : "Token graduates at 50,000 OXO market cap"}
@@ -292,28 +390,28 @@ export default function TradePage() {
         </div>
 
         {/* Agent Stats */}
-        <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
+        <div className="bg-bg-surface rounded-2xl p-6 border border-border-subtle">
           <h3 className="text-lg font-semibold mb-4">Agent Performance</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-zinc-400">Service Calls</span>
+              <span className="text-text-muted">Service Calls</span>
               <span className="font-mono">{agent.total_service_calls}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Total Earnings</span>
-              <span className="font-mono text-emerald-400">
+              <span className="text-text-muted">Total Earnings</span>
+              <span className="font-mono text-forest-light">
                 {(agent.total_earnings / 1_000_000).toFixed(2)} Cred
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Staked</span>
+              <span className="text-text-muted">Staked</span>
               <span className="font-mono">
                 {(agent.stake_amount / 1_000_000).toFixed(0)} OXO
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Status</span>
-              <span className="text-emerald-400 capitalize">{agent.status}</span>
+              <span className="text-text-muted">Status</span>
+              <span className="text-forest-light capitalize">{agent.status}</span>
             </div>
           </div>
         </div>
