@@ -2,8 +2,6 @@
  * Multi-Engine Model Registry with Fallbacks
  * 
  * FREE TIER: Google Gemini (15 RPM, 1M tokens/day free)
- * 
- * TODO: Add Groq when @ai-sdk/groq version compatibility is resolved
  */
 
 import { google } from "@ai-sdk/google";
@@ -22,21 +20,21 @@ export interface ModelProvider {
 }
 
 // Model registry - FREE TIER ONLY
+// Correct model names: https://ai.google.dev/gemini-api/docs/models/gemini
 export const modelRegistry: ModelProvider[] = [
   {
-    id: "gemini",
-    name: "Gemini 2.0 Flash",
-    model: "gemini-2.0-flash-exp",
+    id: "gemini-flash",
+    name: "Gemini 1.5 Flash",
+    model: "gemini-1.5-flash",
     provider: google,
     priority: 1,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    cooldownMs: 60000, // 1 minute cooldown on rate limit
+    cooldownMs: 60000,
   },
-  // Gemini fallback model
   {
-    id: "gemini-pro",
-    name: "Gemini 1.5 Pro",
-    model: "gemini-1.5-pro",
+    id: "gemini-flash-8b",
+    name: "Gemini 1.5 Flash 8B",
+    model: "gemini-1.5-flash-8b",
     provider: google,
     priority: 2,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -50,7 +48,6 @@ export const modelRegistry: ModelProvider[] = [
 export function getNextAvailableModel(): ModelProvider | null {
   const now = Date.now();
   
-  // Sort by priority and filter available
   const available = modelRegistry
     .filter(m => m.available)
     .filter(m => {
