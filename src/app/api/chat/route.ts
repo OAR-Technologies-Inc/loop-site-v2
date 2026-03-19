@@ -119,12 +119,12 @@ export async function POST(req: Request) {
         // Stream response using the selected model with tools
         const result = await streamText({
           model: currentModel.getModel(),
-        system: contextualSystem,
-        messages,
-        maxTokens: 1024,
-        temperature: 0.7,
-        maxSteps: 3, // Allow model to continue after tool calls
-        tools: {
+          system: contextualSystem,
+          messages,
+          maxTokens: 1024,
+          temperature: 0.7,
+          maxSteps: 3, // Allow model to continue after tool calls
+          tools: {
           calculateYield: tool({
             description: "Calculate projected staking yield using the actual Loop Protocol SDK. Use this when users ask about yield, APY, staking returns, or want to know how much they would earn.",
             parameters: z.object({
