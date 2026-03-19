@@ -7,3 +7,4 @@ export { ImmersiveNav } from "./ImmersiveNav";
 export { SystemTicker } from "./SystemTicker";
 export { GridBackground } from "./GridBackground";
 export { AgentHUD } from "./AgentHUD";
+export { AgentWidget } from "./AgentWidget";

@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
 import { CapabilityBroadcast } from "@/components/CapabilityBroadcast";
+import { AgentWidget } from "@/components/ui";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -55,6 +56,7 @@ export default function RootLayout({
         <WalletProvider>
           <CapabilityBroadcast />
           {children}
+          <AgentWidget />
         </WalletProvider>
       </body>
     </html>

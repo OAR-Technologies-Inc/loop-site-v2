@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Cpu } from "lucide-react";
-import { AgentHUD } from "./AgentHUD";
 
 export function C2Nav() {
   const pathname = usePathname();
@@ -16,7 +15,6 @@ export function C2Nav() {
   const [latency, setLatency] = useState(24);
   const [timestamp, setTimestamp] = useState("");
   const [agentCount, setAgentCount] = useState(847);
-  const [hudOpen, setHudOpen] = useState(false);
 
   // Live clock and uptime
   useEffect(() => {
@@ -130,7 +128,7 @@ export function C2Nav() {
             ))}
           </div>
 
-          {/* Right: Deploy + Connect Agent + Wallet */}
+          {/* Right: Deploy + Wallet */}
           <div className="flex items-center gap-3">
             <Link href="/launch">
               <motion.span
@@ -140,32 +138,6 @@ export function C2Nav() {
                 Deploy
               </motion.span>
             </Link>
-
-            {/* Connect Agent Button */}
-            <motion.button
-              onClick={() => setHudOpen(true)}
-              className={`relative flex items-center gap-2 px-3 py-2 rounded border transition-all ${
-                hudOpen 
-                  ? "bg-accent/10 border-accent/50 text-accent"
-                  : "bg-white/5 border-white/10 text-zinc-400 hover:border-accent/30 hover:text-accent"
-              }`}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Cpu size={14} strokeWidth={1.2} />
-              <span className="text-[10px] font-mono uppercase tracking-wider hidden sm:inline">
-                Connect Agent
-              </span>
-              
-              {/* Shimmer border when active */}
-              {hudOpen && (
-                <motion.div
-                  className="absolute inset-0 rounded border border-accent/50"
-                  animate={{ opacity: [0.3, 0.8, 0.3] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              )}
-            </motion.button>
             
             {/* Wallet Button with Shimmer */}
             <div className={`wallet-btn-wrapper ${connected ? 'wallet-connected' : ''}`}>
@@ -174,9 +146,6 @@ export function C2Nav() {
           </div>
         </nav>
       </header>
-
-      {/* Agent HUD */}
-      <AgentHUD isOpen={hudOpen} onClose={() => setHudOpen(false)} />
     </>
   );
 }

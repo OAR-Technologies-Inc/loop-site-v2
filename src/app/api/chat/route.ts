@@ -245,23 +245,22 @@ export async function POST(req: Request) {
               };
             },
           }),
-          navigate: tool({
-            description: "Navigate the user to a specific page on the Loop Protocol site",
+          mapsTo: tool({
+            description: "Navigate the user to a specific page. Use when the user asks to go somewhere, see a page, or wants to navigate.",
             parameters: z.object({
-              page: z.enum([
-                "/",
-                "/marketplace",
-                "/marketplace/leaderboard",
-                "/marketplace/tokens",
-                "/marketplace/stats",
-                "/docs",
-                "/security",
-                "/launch",
-              ]).describe("The page to navigate to"),
-              reason: z.string().describe("Brief explanation of why navigating here"),
+              path: z.string().describe("The path to navigate to (e.g., '/marketplace', '/docs', '/launch')"),
             }),
-            execute: async ({ page, reason }) => {
-              return { action: "navigate", page, reason };
+            execute: async ({ path }) => {
+              // Normalize path
+              const validPaths = ["/", "/marketplace", "/marketplace/leaderboard", "/marketplace/tokens", "/marketplace/stats", "/docs", "/security", "/launch"];
+              const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+              const isValid = validPaths.some(p => normalizedPath.startsWith(p));
+              
+              if (!isValid) {
+                return { error: `Unknown path: ${path}. Valid paths: ${validPaths.join(", ")}` };
+              }
+              
+              return { action: "navigate", path: normalizedPath, navigated: true };
             },
           }),
           showDocument: tool({
