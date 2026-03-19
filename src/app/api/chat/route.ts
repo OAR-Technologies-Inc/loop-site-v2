@@ -61,6 +61,8 @@ You have tools connected to the actual Loop Protocol SDK:
 - showDocument: Display documentation or content inline
 
 IMPORTANT: When users ask about yield, APY, or staking returns, ALWAYS use the calculateYield tool to provide accurate figures from the SDK. Never guess or use placeholder numbers.
+
+CRITICAL: After calling ANY tool, you MUST respond with a text message explaining the results to the user. Never end your turn with just a tool call - always follow up with human-readable explanation of the data.
 `;
 
 export async function POST(req: Request) {
