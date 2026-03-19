@@ -97,8 +97,8 @@ export async function POST(req: Request) {
         temperature: 0.7,
       });
 
-      // Return streaming response with model info in headers
-      return result.toTextStreamResponse({
+      // Return data stream response (required for useChat hook)
+      return result.toDataStreamResponse({
         headers: {
           "X-Model-Used": model.id,
           "X-Model-Name": model.name,
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
             temperature: 0.7,
           });
 
-          return fallbackResult.toTextStreamResponse({
+          return fallbackResult.toDataStreamResponse({
             headers: {
               "X-Model-Used": fallbackModel.id,
               "X-Model-Name": fallbackModel.name,
