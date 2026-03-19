@@ -119,26 +119,31 @@ export async function POST(req: Request) {
               days: z.number().min(7).max(730).describe("Lock duration in days (7-730)"),
             }),
             execute: async ({ amount, days }) => {
-              // Call SDK calculation API
-              const baseUrl = process.env.VERCEL_URL 
-                ? `https://${process.env.VERCEL_URL}` 
-                : "http://localhost:3000";
+              // Direct SDK calculation (no API call needed - same server)
+              const STAKING_APY = {
+                TIER_365_PLUS: 1500, TIER_180_PLUS: 1200, TIER_90_PLUS: 800,
+                TIER_30_PLUS: 500, TIER_7_PLUS: 300, MINIMUM: 0,
+              };
               
-              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ calculation: "yield", params: { amount, days } }),
-              });
+              let apyBps = STAKING_APY.MINIMUM;
+              if (days >= 365) apyBps = STAKING_APY.TIER_365_PLUS;
+              else if (days >= 180) apyBps = STAKING_APY.TIER_180_PLUS;
+              else if (days >= 90) apyBps = STAKING_APY.TIER_90_PLUS;
+              else if (days >= 30) apyBps = STAKING_APY.TIER_30_PLUS;
+              else if (days >= 7) apyBps = STAKING_APY.TIER_7_PLUS;
               
-              if (!response.ok) {
-                return { error: "SDK calculation failed", fallback: true };
-              }
+              const apyPercent = apyBps / 100;
+              const yieldAmount = Math.round(amount * (apyBps / 10000) * (days / 365) * 100) / 100;
+              const finalAmount = Math.round((amount + yieldAmount) * 100) / 100;
               
-              const result = await response.json();
+              const tier = days >= 365 ? "365+ days (Max)" : days >= 180 ? "180-364 days" : 
+                          days >= 90 ? "90-179 days" : days >= 30 ? "30-89 days" : 
+                          days >= 7 ? "7-29 days" : "Below minimum";
+              
               return {
                 action: "calculateYield",
-                ...result,
-                formatted: `${amount.toLocaleString()} CRED at ${result.apyPercent}% APY for ${days} days = ${result.yieldAmount.toLocaleString()} yield → ${result.finalAmount.toLocaleString()} total`,
+                amount, durationDays: days, apyBps, apyPercent, yieldAmount, finalAmount, tier,
+                formatted: `${amount.toLocaleString()} CRED at ${apyPercent}% APY for ${days} days = ${yieldAmount.toLocaleString()} yield → ${finalAmount.toLocaleString()} total`,
               };
             },
           }),
@@ -149,25 +154,21 @@ export async function POST(req: Request) {
               lockMonths: z.number().min(6).max(48).describe("Lock duration in months (6, 12, 24, or 48)"),
             }),
             execute: async ({ amount, lockMonths }) => {
-              const baseUrl = process.env.VERCEL_URL 
-                ? `https://${process.env.VERCEL_URL}` 
-                : "http://localhost:3000";
+              // Direct calculation (no API call needed)
+              let multiplier = 0;
+              if (lockMonths >= 48) multiplier = 2.0;
+              else if (lockMonths >= 24) multiplier = 1.0;
+              else if (lockMonths >= 12) multiplier = 0.5;
+              else if (lockMonths >= 6) multiplier = 0.25;
               
-              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ calculation: "veoxo", params: { amount, lockMonths } }),
-              });
+              const veOxoPower = Math.round(amount * multiplier * 100) / 100;
+              const lockPeriod = lockMonths >= 48 ? "4 years (2x)" : lockMonths >= 24 ? "2 years (1x)" :
+                                lockMonths >= 12 ? "1 year (0.5x)" : lockMonths >= 6 ? "6 months (0.25x)" : "Below minimum";
               
-              if (!response.ok) {
-                return { error: "SDK calculation failed", fallback: true };
-              }
-              
-              const result = await response.json();
               return {
                 action: "calculateVeOxo",
-                ...result,
-                formatted: `${amount.toLocaleString()} OXO locked for ${result.lockPeriod} = ${result.veOxoPower.toLocaleString()} veOXO voting power`,
+                oxoAmount: amount, lockMonths, multiplier, veOxoPower, lockPeriod,
+                formatted: `${amount.toLocaleString()} OXO locked for ${lockPeriod} = ${veOxoPower.toLocaleString()} veOXO voting power`,
               };
             },
           }),
@@ -175,21 +176,18 @@ export async function POST(req: Request) {
             description: "Get all staking APY tiers. Use when users ask about available rates, tiers, or want to compare different lock periods.",
             parameters: z.object({}),
             execute: async () => {
-              const baseUrl = process.env.VERCEL_URL 
-                ? `https://${process.env.VERCEL_URL}` 
-                : "http://localhost:3000";
-              
-              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ calculation: "tiers", params: {} }),
-              });
-              
-              if (!response.ok) {
-                return { error: "SDK calculation failed", fallback: true };
-              }
-              
-              return await response.json();
+              // Direct return (no API call needed)
+              return {
+                tiers: [
+                  { minDays: 365, maxDays: 730, apyPercent: 15, name: "365+ days" },
+                  { minDays: 180, maxDays: 364, apyPercent: 12, name: "180-364 days" },
+                  { minDays: 90, maxDays: 179, apyPercent: 8, name: "90-179 days" },
+                  { minDays: 30, maxDays: 89, apyPercent: 5, name: "30-89 days" },
+                  { minDays: 7, maxDays: 29, apyPercent: 3, name: "7-29 days" },
+                ],
+                minimumLock: 7,
+                maximumLock: 730,
+              };
             },
           }),
           calculateEarlyExit: tool({
@@ -200,30 +198,47 @@ export async function POST(req: Request) {
               exitDay: z.number().min(1).describe("Day number when exiting (e.g., 200 means exit on day 200)"),
             }),
             execute: async ({ amount, commitmentDays, exitDay }) => {
-              const baseUrl = process.env.VERCEL_URL 
-                ? `https://${process.env.VERCEL_URL}` 
-                : "http://localhost:3000";
+              // Direct calculation (no API call needed)
+              const STAKING_APY = {
+                TIER_365_PLUS: 1500, TIER_180_PLUS: 1200, TIER_90_PLUS: 800,
+                TIER_30_PLUS: 500, TIER_7_PLUS: 300, MINIMUM: 0,
+              };
               
-              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                  calculation: "earlyExit", 
-                  params: { amount, commitmentDays, exitDay } 
-                }),
-              });
+              let apyBps = STAKING_APY.MINIMUM;
+              if (commitmentDays >= 365) apyBps = STAKING_APY.TIER_365_PLUS;
+              else if (commitmentDays >= 180) apyBps = STAKING_APY.TIER_180_PLUS;
+              else if (commitmentDays >= 90) apyBps = STAKING_APY.TIER_90_PLUS;
+              else if (commitmentDays >= 30) apyBps = STAKING_APY.TIER_30_PLUS;
+              else if (commitmentDays >= 7) apyBps = STAKING_APY.TIER_7_PLUS;
               
-              if (!response.ok) {
-                return { error: "SDK calculation failed", fallback: true };
+              const isEarly = exitDay < commitmentDays;
+              const fullYield = amount * (apyBps / 10000) * (commitmentDays / 365);
+              
+              if (!isEarly) {
+                const finalAmount = Math.round((amount + fullYield) * 100) / 100;
+                return {
+                  action: "calculateEarlyExit", isEarly: false, penalty: 0, 
+                  finalAmount, message: "Full maturity reached - no penalty",
+                  summary: `No penalty - full maturity reached. Final payout: ${finalAmount.toLocaleString()}`,
+                };
               }
               
-              const result = await response.json();
+              const proportionalYield = (fullYield * exitDay) / commitmentDays;
+              const penalty = Math.round(proportionalYield / 5 * 100) / 100; // 20% penalty
+              const netYield = Math.round((proportionalYield - penalty) * 100) / 100;
+              const finalAmount = Math.round((amount + netYield) * 100) / 100;
+              const fullMaturityAmount = Math.round((amount + fullYield) * 100) / 100;
+              
               return {
                 action: "calculateEarlyExit",
-                ...result,
-                summary: result.isEarly 
-                  ? `Early exit penalty: ${result.penalty.toLocaleString()} (20% of earned yield). Final payout: ${result.finalAmount.toLocaleString()} vs ${result.fullMaturityAmount.toLocaleString()} if held to maturity.`
-                  : `No penalty - full maturity reached. Final payout: ${result.finalAmount.toLocaleString()}`,
+                amount, commitmentDays, exitDay, isEarly: true,
+                apyPercent: apyBps / 100,
+                fullYield: Math.round(fullYield * 100) / 100,
+                proportionalYield: Math.round(proportionalYield * 100) / 100,
+                penalty, penaltyPercent: 20, netYield,
+                principalReturned: amount, finalAmount, fullMaturityAmount,
+                opportunityCost: Math.round((fullMaturityAmount - finalAmount) * 100) / 100,
+                summary: `Early exit penalty: ${penalty.toLocaleString()} (20% of earned yield). Final payout: ${finalAmount.toLocaleString()} vs ${fullMaturityAmount.toLocaleString()} if held to maturity.`,
               };
             },
           }),
