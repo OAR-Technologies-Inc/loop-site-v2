@@ -5,7 +5,7 @@ import { useChat } from "ai/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Terminal, Cpu, Send, Loader2, Compass, Trophy, CircleDollarSign, BarChart3, FileCode, Lock, Zap, Activity, AlertCircle } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface AgentHUDProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ function formatTerminalOutput(content: string): string {
 export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
   const { connected, publicKey } = useWallet();
   const pathname = usePathname();
+  const router = useRouter();
   const [simulationMode, setSimulationMode] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
@@ -53,6 +54,16 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
     onResponse: (response) => {
       const model = response.headers.get("X-Model-Name");
       if (model) setModelUsed(model);
+    },
+    onToolCall: async ({ toolCall }) => {
+      // Handle navigation tool
+      if (toolCall.toolName === "navigate") {
+        const args = toolCall.args as { page: string; reason: string };
+        router.push(args.page);
+        return { navigated: true, to: args.page };
+      }
+      // showDocument just returns content, handled in message display
+      return undefined;
     },
   });
 

@@ -5,7 +5,8 @@
  * State-aware: receives wallet/context in messages.
  */
 
-import { streamText } from "ai";
+import { streamText, tool } from "ai";
+import { z } from "zod";
 import { getNextAvailableModel, markModelRateLimited, getModelStatus } from "@/lib/ai/registry";
 
 // System prompt with Loop Protocol knowledge
@@ -45,6 +46,13 @@ Loop Protocol is value infrastructure for the agentic era. It enables:
 - Be concise but thorough
 - Proactively suggest next steps
 - Reference specific program addresses when relevant
+
+## Available Tools
+You have tools to help users navigate and get information:
+- navigate: Send users to specific pages on the site
+- showDocument: Display documentation or content inline
+
+Use these tools when users ask to go somewhere or want to see specific docs.
 `;
 
 export async function POST(req: Request) {
@@ -88,13 +96,80 @@ export async function POST(req: Request) {
     console.log(`[AI] Using model: ${model.name} (${model.id})`);
 
     try {
-      // Stream response using the selected model
+      // Stream response using the selected model with tools
       const result = await streamText({
         model: model.provider(model.model),
         system: contextualSystem,
         messages,
         maxTokens: 1024,
         temperature: 0.7,
+        tools: {
+          navigate: tool({
+            description: "Navigate the user to a specific page on the Loop Protocol site",
+            parameters: z.object({
+              page: z.enum([
+                "/",
+                "/marketplace",
+                "/marketplace/leaderboard",
+                "/marketplace/tokens",
+                "/marketplace/stats",
+                "/docs",
+                "/security",
+                "/launch",
+              ]).describe("The page to navigate to"),
+              reason: z.string().describe("Brief explanation of why navigating here"),
+            }),
+            execute: async ({ page, reason }) => {
+              return { action: "navigate", page, reason };
+            },
+          }),
+          showDocument: tool({
+            description: "Show documentation or reference content to the user",
+            parameters: z.object({
+              document: z.enum([
+                "tokenomics",
+                "llms",
+                "staking-tiers",
+                "program-addresses",
+              ]).describe("The document to display"),
+            }),
+            execute: async ({ document }) => {
+              const docs: Record<string, string> = {
+                "tokenomics": `## Loop Tokenomics
+                
+**CRED** - Stable unit (1:1 USDC)
+**OXO** - Ecosystem token, bonding curve pricing
+**veOXO** - Governance token (6mo-4yr lock)
+
+Staking APY: 3-15% based on lock duration`,
+                
+                "llms": `## AI Integration
+
+Loop Protocol exposes machine-readable endpoints:
+- /llms.txt - Agent capability broadcast
+- /tokenomics.txt - Economic parameters
+- /api/agent/handshake - Agent docking`,
+                
+                "staking-tiers": `## Staking APY Tiers
+
+| Duration | APY |
+|----------|-----|
+| 7-29 days | 3% |
+| 30-89 days | 5% |
+| 90-179 days | 8% |
+| 180-364 days | 12% |
+| 365-730 days | 15% |`,
+                
+                "program-addresses": `## Deployed Programs (Mainnet)
+
+**CRED**: HYQJwCJ5wH9o4sb9sVPyvSSeY9DtsznZGy2AfpiBaBaG
+**VAULT**: J8HhLeRv5iQaSyYQBXJoDwDKbw4V8uA84WN93YrVSWQT
+**SHOPPING**: HiewKEBy6YVn3Xi5xdhyrsfPr3KjKg6Jy8PXemyeteXJ`,
+              };
+              return { action: "showDocument", content: docs[document] || "Document not found" };
+            },
+          }),
+        },
       });
 
       // Return data stream response (required for useChat hook)
