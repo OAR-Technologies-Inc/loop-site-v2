@@ -52,6 +52,7 @@ You have tools connected to the actual Loop Protocol SDK:
 
 **SDK Calculations (REAL DATA):**
 - calculateYield: Calculate staking yield with real SDK math
+- calculateEarlyExit: Simulate early withdrawal penalty (20% on earned yield)
 - calculateVeOxo: Calculate veOXO governance power from OXO locks  
 - getStakingTiers: Show all available APY tiers
 
@@ -189,6 +190,41 @@ export async function POST(req: Request) {
               }
               
               return await response.json();
+            },
+          }),
+          calculateEarlyExit: tool({
+            description: "Calculate what happens if a user exits their stake early. Shows penalty, net yield, and opportunity cost. Use when users ask about early withdrawal, breaking a stake, or penalty calculations.",
+            parameters: z.object({
+              amount: z.number().describe("Amount originally staked"),
+              commitmentDays: z.number().min(7).max(730).describe("Original lock commitment in days"),
+              exitDay: z.number().min(1).describe("Day number when exiting (e.g., 200 means exit on day 200)"),
+            }),
+            execute: async ({ amount, commitmentDays, exitDay }) => {
+              const baseUrl = process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : "http://localhost:3000";
+              
+              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                  calculation: "earlyExit", 
+                  params: { amount, commitmentDays, exitDay } 
+                }),
+              });
+              
+              if (!response.ok) {
+                return { error: "SDK calculation failed", fallback: true };
+              }
+              
+              const result = await response.json();
+              return {
+                action: "calculateEarlyExit",
+                ...result,
+                summary: result.isEarly 
+                  ? `Early exit penalty: ${result.penalty.toLocaleString()} (20% of earned yield). Final payout: ${result.finalAmount.toLocaleString()} vs ${result.fullMaturityAmount.toLocaleString()} if held to maturity.`
+                  : `No penalty - full maturity reached. Final payout: ${result.finalAmount.toLocaleString()}`,
+              };
             },
           }),
           navigate: tool({

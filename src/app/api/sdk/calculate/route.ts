@@ -163,6 +163,68 @@ export async function POST(req: Request) {
         });
       }
 
+      case "earlyExit": {
+        // Simulate early unstaking with penalty
+        const { amount, commitmentDays, exitDay } = params;
+        if (typeof amount !== "number" || typeof commitmentDays !== "number" || typeof exitDay !== "number") {
+          return NextResponse.json(
+            { error: "Missing amount, commitmentDays, or exitDay parameter" },
+            { status: 400 }
+          );
+        }
+        
+        if (exitDay >= commitmentDays) {
+          // Not early - full maturity
+          const result = calculateYield(amount, commitmentDays);
+          return NextResponse.json({
+            ...result,
+            isEarly: false,
+            penalty: 0,
+            penaltyPercent: 0,
+            message: "Full maturity reached - no penalty",
+          });
+        }
+        
+        // Early exit calculation (matches on-chain logic)
+        const apyBps = calculateApy(commitmentDays);
+        const fullYield = amount * (apyBps / 10000) * (commitmentDays / 365);
+        const proportionalYield = (fullYield * exitDay) / commitmentDays;
+        const penalty = proportionalYield / 5; // 20% penalty on earned yield
+        const netYield = proportionalYield - penalty;
+        const finalAmount = amount + netYield;
+        
+        // What they would have gotten if they stayed
+        const fullMaturityAmount = amount + fullYield;
+        const opportunityCost = fullMaturityAmount - finalAmount;
+        
+        return NextResponse.json({
+          amount,
+          commitmentDays,
+          exitDay,
+          daysRemaining: commitmentDays - exitDay,
+          apyPercent: apyBps / 100,
+          tier: getTierName(commitmentDays),
+          isEarly: true,
+          
+          // Yield breakdown
+          fullYield: Math.round(fullYield * 100) / 100,
+          proportionalYield: Math.round(proportionalYield * 100) / 100,
+          penalty: Math.round(penalty * 100) / 100,
+          penaltyPercent: 20,
+          netYield: Math.round(netYield * 100) / 100,
+          
+          // Final numbers
+          principalReturned: amount,
+          finalAmount: Math.round(finalAmount * 100) / 100,
+          
+          // Comparison
+          fullMaturityAmount: Math.round(fullMaturityAmount * 100) / 100,
+          opportunityCost: Math.round(opportunityCost * 100) / 100,
+          
+          message: `Early exit at day ${exitDay}/${commitmentDays}: 20% penalty on earned yield`,
+        });
+      }
+
       default:
         return NextResponse.json(
           { error: `Unknown calculation type: ${calculation}` },
