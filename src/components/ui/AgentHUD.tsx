@@ -258,32 +258,48 @@ ${connected ? `• Wallet: ${publicKey?.toString().slice(0, 8)}...` : "• Walle
                 </div>
               )}
 
-              {messages.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={message.role === "user" ? "pl-8" : ""}
-                >
-                  {message.role === "user" ? (
-                    <div className="flex justify-end">
-                      <div className="bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 max-w-[85%]">
-                        <p className="text-xs font-mono text-accent whitespace-pre-wrap">{message.content}</p>
+              {messages.map((message) => {
+                // Extract tool results if present
+                const toolInvocations = (message as { toolInvocations?: Array<{ toolName: string; state: string; result?: { formatted?: string; summary?: string; action?: string } }> }).toolInvocations;
+                const hasToolResult = toolInvocations?.some(t => t.state === "result" && t.result);
+                const toolResult = toolInvocations?.find(t => t.state === "result")?.result;
+                
+                // Get display content: prefer tool formatted result, fallback to message content
+                const displayContent = message.content || 
+                  (toolResult?.formatted) || 
+                  (toolResult?.summary) ||
+                  (hasToolResult ? JSON.stringify(toolResult, null, 2) : "");
+                
+                if (!displayContent && message.role === "assistant") return null;
+                
+                return (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={message.role === "user" ? "pl-8" : ""}
+                  >
+                    {message.role === "user" ? (
+                      <div className="flex justify-end">
+                        <div className="bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 max-w-[85%]">
+                          <p className="text-xs font-mono text-accent whitespace-pre-wrap">{message.content}</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-[8px] font-mono text-zinc-500">
-                        <Terminal size={10} />
-                        <span>LOOP_REP</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-[8px] font-mono text-zinc-500">
+                          <Terminal size={10} />
+                          <span>LOOP_REP</span>
+                          {hasToolResult && <span className="text-accent">• SDK</span>}
+                        </div>
+                        <div className="text-xs font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                          {formatTerminalOutput(displayContent)}
+                        </div>
                       </div>
-                      <div className="text-xs font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                        {formatTerminalOutput(message.content)}
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              ))}
+                    )}
+                  </motion.div>
+                );
+              })}
 
               {isLoading && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-xs font-mono text-zinc-500">
