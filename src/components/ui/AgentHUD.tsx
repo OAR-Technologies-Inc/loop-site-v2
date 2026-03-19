@@ -56,13 +56,13 @@ export function AgentHUD({ isOpen, onClose }: AgentHUDProps) {
       if (model) setModelUsed(model);
     },
     onToolCall: async ({ toolCall }) => {
-      // Handle navigation tool
-      if (toolCall.toolName === "navigate") {
-        const args = toolCall.args as { page: string; reason: string };
-        router.push(args.page);
-        return { navigated: true, to: args.page };
+      // Handle navigation tool (named "mapsTo" in API)
+      if (toolCall.toolName === "mapsTo") {
+        const args = toolCall.args as { path: string };
+        router.push(args.path);
+        return { navigated: true, to: args.path };
       }
-      // showDocument just returns content, handled in message display
+      // Other tools (calculateYield, etc.) return data for display
       return undefined;
     },
   });
@@ -260,15 +260,36 @@ ${connected ? `• Wallet: ${publicKey?.toString().slice(0, 8)}...` : "• Walle
 
               {messages.map((message) => {
                 // Extract tool results if present
-                const toolInvocations = (message as { toolInvocations?: Array<{ toolName: string; state: string; result?: { formatted?: string; summary?: string; action?: string } }> }).toolInvocations;
-                const hasToolResult = toolInvocations?.some(t => t.state === "result" && t.result);
-                const toolResult = toolInvocations?.find(t => t.state === "result")?.result;
+                const toolInvocations = (message as { toolInvocations?: Array<{ toolName: string; state: string; result?: { formatted?: string; summary?: string; action?: string; content?: string } }> }).toolInvocations;
+                const completedTools = toolInvocations?.filter(t => t.state === "result" && t.result) || [];
+                const hasToolResult = completedTools.length > 0;
                 
-                // Get display content: prefer tool formatted result, fallback to message content
-                const displayContent = message.content || 
-                  (toolResult?.formatted) || 
-                  (toolResult?.summary) ||
-                  (hasToolResult ? JSON.stringify(toolResult, null, 2) : "");
+                // Build display content: message content + any tool results
+                const parts: string[] = [];
+                
+                // Add message content if present
+                if (message.content && message.content.trim()) {
+                  parts.push(message.content);
+                }
+                
+                // Add tool results
+                completedTools.forEach(tool => {
+                  const result = tool.result;
+                  if (result?.formatted) {
+                    parts.push(`[SDK] ${result.formatted}`);
+                  } else if (result?.summary) {
+                    parts.push(`[SDK] ${result.summary}`);
+                  } else if (result?.content) {
+                    parts.push(result.content);
+                  } else if (result?.action === "navigate") {
+                    // Navigation already handled, skip
+                  } else if (result) {
+                    // Fallback: show raw result for debugging
+                    parts.push(`[SDK] ${JSON.stringify(result)}`);
+                  }
+                });
+                
+                const displayContent = parts.join("\n\n");
                 
                 if (!displayContent && message.role === "assistant") return null;
                 
