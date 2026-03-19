@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     try {
       // Stream response using the selected model with tools
       const result = await streamText({
-        model: model.provider(model.model),
+        model: model.getModel(),
         system: contextualSystem,
         messages,
         maxTokens: 1024,
@@ -333,7 +333,7 @@ Loop Protocol exposes machine-readable endpoints:
           console.log(`[AI] Falling back to: ${fallbackModel.name}`);
           
           const fallbackResult = await streamText({
-            model: fallbackModel.provider(fallbackModel.model),
+            model: fallbackModel.getModel(),
             system: contextualSystem,
             messages,
             maxTokens: 1024,

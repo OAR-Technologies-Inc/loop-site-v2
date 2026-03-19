@@ -1,18 +1,26 @@
 /**
  * Multi-Engine Model Registry with Fallbacks
  * 
- * FREE TIER: Google Gemini
- * Verified models from: https://generativelanguage.googleapis.com/v1beta/models
+ * Priority order:
+ * 1. Gemini 2.5 Flash (free tier)
+ * 2. Gemini 2.0 Flash (free tier fallback)
+ * 3. Groq Llama 3.3 70B (free tier, generous limits)
  */
 
 import { google } from "@ai-sdk/google";
-import { LanguageModel } from "ai";
+import { createGroq } from "@ai-sdk/groq";
+
+// Initialize Groq provider
+const groqProvider = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 export interface ModelProvider {
   id: string;
   name: string;
   model: string;
-  provider: (model: string) => LanguageModel;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getModel: () => any; // SDK types are in flux between versions
   priority: number;
   available: boolean;
   lastError?: string;
@@ -20,13 +28,13 @@ export interface ModelProvider {
   cooldownMs: number;
 }
 
-// Model registry - VERIFIED model names from API
+// Model registry with multiple free-tier options
 export const modelRegistry: ModelProvider[] = [
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     model: "gemini-2.5-flash",
-    provider: google,
+    getModel: () => google("gemini-2.5-flash"),
     priority: 1,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     cooldownMs: 60000,
@@ -35,10 +43,19 @@ export const modelRegistry: ModelProvider[] = [
     id: "gemini-2.0-flash",
     name: "Gemini 2.0 Flash",
     model: "gemini-2.0-flash",
-    provider: google,
+    getModel: () => google("gemini-2.0-flash"),
     priority: 2,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     cooldownMs: 60000,
+  },
+  {
+    id: "groq-llama-3.3-70b",
+    name: "Groq Llama 3.3 70B",
+    model: "llama-3.3-70b-versatile",
+    getModel: () => groqProvider("llama-3.3-70b-versatile"),
+    priority: 3,
+    available: !!process.env.GROQ_API_KEY,
+    cooldownMs: 30000, // Groq has generous limits
   },
 ];
 
