@@ -1,13 +1,12 @@
 /**
  * Multi-Engine Model Registry with Fallbacks
  * 
- * Cycles through providers when rate limits are hit:
- * 1. Google Gemini (primary)
- * 2. Anthropic Claude
+ * FREE TIER: Google Gemini (15 RPM, 1M tokens/day free)
+ * 
+ * TODO: Add Groq when @ai-sdk/groq version compatibility is resolved
  */
 
 import { google } from "@ai-sdk/google";
-import { anthropic } from "@ai-sdk/anthropic";
 import { LanguageModel } from "ai";
 
 export interface ModelProvider {
@@ -22,7 +21,7 @@ export interface ModelProvider {
   cooldownMs: number;
 }
 
-// Model registry with fallback order
+// Model registry - FREE TIER ONLY
 export const modelRegistry: ModelProvider[] = [
   {
     id: "gemini",
@@ -33,13 +32,14 @@ export const modelRegistry: ModelProvider[] = [
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     cooldownMs: 60000, // 1 minute cooldown on rate limit
   },
+  // Gemini fallback model
   {
-    id: "anthropic",
-    name: "Claude 3.5 Haiku",
-    model: "claude-3-5-haiku-latest",
-    provider: anthropic,
+    id: "gemini-pro",
+    name: "Gemini 1.5 Pro",
+    model: "gemini-1.5-pro",
+    provider: google,
     priority: 2,
-    available: !!process.env.ANTHROPIC_API_KEY,
+    available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     cooldownMs: 60000,
   },
 ];
