@@ -84,31 +84,55 @@ const tools = {
 };
 
 export async function POST(req: Request) {
+  const errors: string[] = [];
+  
   try {
-    const { messages, context } = await req.json();
+    const body = await req.json();
+    const { messages, context } = body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request: messages required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     let systemPrompt = SYSTEM_PROMPT;
     if (context?.walletConnected) {
       systemPrompt += `\n\nWallet: ${context.walletAddress?.slice(0, 8)}...`;
     }
 
-    // Try each model in order
-    const errors: string[] = [];
-    
-    for (const modelConfig of modelRegistry) {
-      if (!modelConfig.available) continue;
-      
-      // Check cooldown
-      if (modelConfig.lastErrorTime) {
-        const elapsed = Date.now() - modelConfig.lastErrorTime;
-        if (elapsed < modelConfig.cooldownMs) continue;
+    // Get available models
+    const availableModels = modelRegistry.filter(m => {
+      if (!m.available) return false;
+      if (m.lastErrorTime) {
+        const elapsed = Date.now() - m.lastErrorTime;
+        if (elapsed < m.cooldownMs) return false;
       }
+      return true;
+    });
 
+    console.log(`[AI] Available models: ${availableModels.map(m => m.id).join(", ") || "none"}`);
+
+    if (availableModels.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: "No models available", 
+          models: getModelStatus() 
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Try each available model
+    for (const modelConfig of availableModels) {
       console.log(`[AI] Trying: ${modelConfig.id}`);
       
       try {
+        const model = modelConfig.getModel();
+        
         const result = await streamText({
-          model: modelConfig.getModel(),
+          model,
           system: systemPrompt,
           messages,
           maxTokens: 1024,
@@ -116,14 +140,16 @@ export async function POST(req: Request) {
           maxSteps: 3,
         });
 
+        console.log(`[AI] Success with: ${modelConfig.id}`);
+        
         return result.toDataStreamResponse({
           headers: { "X-Model": modelConfig.id },
         });
 
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.log(`[AI] ${modelConfig.id} failed: ${msg.slice(0, 80)}`);
-        errors.push(`${modelConfig.id}: ${msg.slice(0, 50)}`);
+        console.error(`[AI] ${modelConfig.id} failed:`, msg);
+        errors.push(`${modelConfig.id}: ${msg.slice(0, 100)}`);
         
         if (msg.includes("rate") || msg.includes("quota") || msg.includes("429")) {
           markModelRateLimited(modelConfig.id, msg);
@@ -131,19 +157,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // All failed
+    // All models failed
     return new Response(
-      JSON.stringify({ error: "All models failed", details: errors }),
+      JSON.stringify({ error: "All models failed", attempts: errors }),
       { status: 503, headers: { "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error("[AI] Error:", error);
+    console.error("[AI] Fatal error:", error);
     return new Response(
       JSON.stringify({ 
-        error: "Chat failed",
-        message: error instanceof Error ? error.message : "Unknown",
-        models: getModelStatus(),
+        error: "Request failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined,
+        attempts: errors,
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
