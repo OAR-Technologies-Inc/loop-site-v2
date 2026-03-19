@@ -1,7 +1,8 @@
 /**
  * Multi-Engine Model Registry with Fallbacks
  * 
- * FREE TIER: Google Gemini (15 RPM, 1M tokens/day free)
+ * FREE TIER: Google Gemini
+ * Verified models from: https://generativelanguage.googleapis.com/v1beta/models
  */
 
 import { google } from "@ai-sdk/google";
@@ -19,22 +20,21 @@ export interface ModelProvider {
   cooldownMs: number;
 }
 
-// Model registry - FREE TIER ONLY
-// Correct model names: https://ai.google.dev/gemini-api/docs/models/gemini
+// Model registry - VERIFIED model names from API
 export const modelRegistry: ModelProvider[] = [
   {
-    id: "gemini-flash",
-    name: "Gemini 1.5 Flash",
-    model: "gemini-1.5-flash",
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    model: "gemini-2.5-flash",
     provider: google,
     priority: 1,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     cooldownMs: 60000,
   },
   {
-    id: "gemini-flash-8b",
-    name: "Gemini 1.5 Flash 8B",
-    model: "gemini-1.5-flash-8b",
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    model: "gemini-2.0-flash",
     provider: google,
     priority: 2,
     available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
