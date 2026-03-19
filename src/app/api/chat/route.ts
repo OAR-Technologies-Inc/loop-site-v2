@@ -48,11 +48,18 @@ Loop Protocol is value infrastructure for the agentic era. It enables:
 - Reference specific program addresses when relevant
 
 ## Available Tools
-You have tools to help users navigate and get information:
+You have tools connected to the actual Loop Protocol SDK:
+
+**SDK Calculations (REAL DATA):**
+- calculateYield: Calculate staking yield with real SDK math
+- calculateVeOxo: Calculate veOXO governance power from OXO locks  
+- getStakingTiers: Show all available APY tiers
+
+**Navigation & Info:**
 - navigate: Send users to specific pages on the site
 - showDocument: Display documentation or content inline
 
-Use these tools when users ask to go somewhere or want to see specific docs.
+IMPORTANT: When users ask about yield, APY, or staking returns, ALWAYS use the calculateYield tool to provide accurate figures from the SDK. Never guess or use placeholder numbers.
 `;
 
 export async function POST(req: Request) {
@@ -104,6 +111,86 @@ export async function POST(req: Request) {
         maxTokens: 1024,
         temperature: 0.7,
         tools: {
+          calculateYield: tool({
+            description: "Calculate projected staking yield using the actual Loop Protocol SDK. Use this when users ask about yield, APY, staking returns, or want to know how much they would earn.",
+            parameters: z.object({
+              amount: z.number().describe("Amount of CRED/OXO to stake"),
+              days: z.number().min(7).max(730).describe("Lock duration in days (7-730)"),
+            }),
+            execute: async ({ amount, days }) => {
+              // Call SDK calculation API
+              const baseUrl = process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : "http://localhost:3000";
+              
+              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ calculation: "yield", params: { amount, days } }),
+              });
+              
+              if (!response.ok) {
+                return { error: "SDK calculation failed", fallback: true };
+              }
+              
+              const result = await response.json();
+              return {
+                action: "calculateYield",
+                ...result,
+                formatted: `${amount.toLocaleString()} CRED at ${result.apyPercent}% APY for ${days} days = ${result.yieldAmount.toLocaleString()} yield → ${result.finalAmount.toLocaleString()} total`,
+              };
+            },
+          }),
+          calculateVeOxo: tool({
+            description: "Calculate veOXO governance power from locking OXO tokens. Use when users ask about veOXO, voting power, or governance multipliers.",
+            parameters: z.object({
+              amount: z.number().describe("Amount of OXO to lock"),
+              lockMonths: z.number().min(6).max(48).describe("Lock duration in months (6, 12, 24, or 48)"),
+            }),
+            execute: async ({ amount, lockMonths }) => {
+              const baseUrl = process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : "http://localhost:3000";
+              
+              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ calculation: "veoxo", params: { amount, lockMonths } }),
+              });
+              
+              if (!response.ok) {
+                return { error: "SDK calculation failed", fallback: true };
+              }
+              
+              const result = await response.json();
+              return {
+                action: "calculateVeOxo",
+                ...result,
+                formatted: `${amount.toLocaleString()} OXO locked for ${result.lockPeriod} = ${result.veOxoPower.toLocaleString()} veOXO voting power`,
+              };
+            },
+          }),
+          getStakingTiers: tool({
+            description: "Get all staking APY tiers. Use when users ask about available rates, tiers, or want to compare different lock periods.",
+            parameters: z.object({}),
+            execute: async () => {
+              const baseUrl = process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : "http://localhost:3000";
+              
+              const response = await fetch(`${baseUrl}/api/sdk/calculate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ calculation: "tiers", params: {} }),
+              });
+              
+              if (!response.ok) {
+                return { error: "SDK calculation failed", fallback: true };
+              }
+              
+              return await response.json();
+            },
+          }),
           navigate: tool({
             description: "Navigate the user to a specific page on the Loop Protocol site",
             parameters: z.object({
