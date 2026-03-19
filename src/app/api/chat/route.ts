@@ -103,12 +103,22 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log(`[AI] Using model: ${model.name} (${model.id})`);
+    // Try models in priority order until one succeeds
+    const triedModels: string[] = [];
+    let currentModel = model;
+    let lastError: Error | null = null;
+    const MAX_ATTEMPTS = 3;
 
-    try {
-      // Stream response using the selected model with tools
-      const result = await streamText({
-        model: model.getModel(),
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (!currentModel) break;
+      
+      console.log(`[AI] Attempt ${attempt + 1}: Using ${currentModel.name} (${currentModel.id})`);
+      triedModels.push(currentModel.id);
+
+      try {
+        // Stream response using the selected model with tools
+        const result = await streamText({
+          model: currentModel.getModel(),
         system: contextualSystem,
         messages,
         maxTokens: 1024,
@@ -312,46 +322,44 @@ Loop Protocol exposes machine-readable endpoints:
         },
       });
 
-      // Return data stream response (required for useChat hook)
-      return result.toDataStreamResponse({
-        headers: {
-          "X-Model-Used": model.id,
-          "X-Model-Name": model.name,
-        },
-      });
+        // Return data stream response (required for useChat hook)
+        return result.toDataStreamResponse({
+          headers: {
+            "X-Model-Used": currentModel.id,
+            "X-Model-Name": currentModel.name,
+            "X-Attempts": String(attempt + 1),
+          },
+        });
 
-    } catch (modelError: unknown) {
-      // Check for rate limit error
-      const errorMessage = modelError instanceof Error ? modelError.message : String(modelError);
-      
-      if (errorMessage.includes("rate") || errorMessage.includes("429") || errorMessage.includes("quota")) {
-        markModelRateLimited(model.id, errorMessage);
+      } catch (modelError: unknown) {
+        lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
+        const errorMessage = lastError.message;
         
-        // Try next model
-        const fallbackModel = getNextAvailableModel();
-        if (fallbackModel) {
-          console.log(`[AI] Falling back to: ${fallbackModel.name}`);
-          
-          const fallbackResult = await streamText({
-            model: fallbackModel.getModel(),
-            system: contextualSystem,
-            messages,
-            maxTokens: 1024,
-            temperature: 0.7,
-          });
-
-          return fallbackResult.toDataStreamResponse({
-            headers: {
-              "X-Model-Used": fallbackModel.id,
-              "X-Model-Name": fallbackModel.name,
-              "X-Fallback": "true",
-            },
-          });
+        console.log(`[AI] Model ${currentModel.id} failed: ${errorMessage.slice(0, 100)}...`);
+        
+        // Check for rate limit error
+        if (errorMessage.includes("rate") || errorMessage.includes("429") || errorMessage.includes("quota")) {
+          markModelRateLimited(currentModel.id, errorMessage);
+        }
+        
+        // Get next available model for retry
+        currentModel = getNextAvailableModel()!;
+        
+        // Skip models we've already tried
+        while (currentModel && triedModels.includes(currentModel.id)) {
+          markModelRateLimited(currentModel.id, "Already tried");
+          currentModel = getNextAvailableModel()!;
+        }
+        
+        if (!currentModel) {
+          console.log(`[AI] All models exhausted after ${attempt + 1} attempts`);
+          break;
         }
       }
-      
-      throw modelError;
     }
+
+    // All models failed
+    throw lastError || new Error("All models failed");
 
   } catch (error) {
     console.error("[AI] Chat error:", error);
